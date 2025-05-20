@@ -38,3 +38,13 @@ Thumbs.db *Zone.Identifier
 # Data files
 *.csv
 *.pkl
+*.pt
+*.pth
+
+*.zip
+*.tar
+*.gz
+*.bz2
+*.rar
+*.7z
+*.wim
