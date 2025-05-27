@@ -48,3 +48,5 @@ Thumbs.db *Zone.Identifier
 *.rar
 *.7z
 *.wim
+
+.npy
