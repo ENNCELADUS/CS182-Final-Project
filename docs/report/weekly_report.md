@@ -3,7 +3,7 @@
 ## 1. Methodology and Implementation
 
 ### 1.1 Feature Extraction (Stage 1)
-We implemented protein sequence embedding using the ESM-C (Evolutionary Scale Modeling) encoder as our primary feature extraction method.
+We implemented protein sequence embedding using the ESM-C encoder as our primary feature extraction method.
 
 **Technical Details:**
 - Input: Protein sequences from the `b4ppi` dataset
@@ -24,9 +24,15 @@ Our initial implementation used simple mean pooling across the sequence length d
 #### 1.2.2 Masked Autoencoder (MAE) Approach
 We developed a masked autoencoder architecture to learn more informative protein representations.
 
-**Results:**
+
+1. **Input** $\to$ linear → mask-out → positional add
+2. **MHSA(Multi-Head Self-Attention) + FFN(Feed-Forward Network)** layers over only visible tokens
+3. **Output** $\mathbf{H}\in\mathbb{R}^{B\times L_{\rm vis}\times E}$
+4. **Pooling & projection** yield the final $(B,960)$ representation
+
+
+
 - Performance: Significant improvement over mean pooling
-- Status: **Currently fine-tuning hyperparameters**
 
 ### 1.3 Downstream Classification (Stage 3)
 We evaluated multiple classification algorithms to determine the optimal approach for PPI prediction.
@@ -36,7 +42,7 @@ We evaluated multiple classification algorithms to determine the optimal approac
 2. **Support Vector Machine (SVM)**
 3. **XGBoost**: Slightly outperformed XGBoost **using functional genomic(FG) annotations**  from "Pitfalls of machine learning models for protein–protein interaction networks"
    - Status: **Completed**
-4. **Multi-Layer Perceptron (MLP)** - Deep learning approach
+4. **Multi-Layer Perceptron (MLP)**
    - Status: **Currently implementing**
 
 ## 2. Current Results and Performance
@@ -47,28 +53,27 @@ We systematically evaluated our approach against established baselines using mul
 #### 2.1.1 Literature Baseline Performance
 **Reference:** "Pitfalls of machine learning models for protein–protein interaction networks"
 
-<img src="baseline_t1.png" alt="Baseline Comparison on Test1 Dataset" width="600">
+<img src="baseline_t1.png" alt="Baseline Comparison on Test1 Dataset" width="1000">
 
 *Figure 1: Performance comparison between functional genomic (FG) based XGBoost and sequence-based Siamese RNN from literature on Test1 dataset.*
 
 #### 2.1.2 Our Approach: ESM-C Embeddings with Traditional Pooling
 
-<img src="xgb_mean.png" alt="XGBoost Mean Pooling Results" width="600">
+<img src="xgb_mean.png" alt="XGBoost Mean Pooling Results" width="1000">
 
 *Figure 2: XGBoost performance using mean pooling aggregation of ESM-C embeddings.*
 
-#### 2.1.3 Our Approach: ESM-C Embeddings with MAE Pooling
+#### 2.1.3 Our Approach: ESM-C Embeddings with MAE
 
-<img src="xgb_mae_v1.png" alt="XGBoost MAE Results" width="600">
+<img src="xgb_mae_v1.png" alt="XGBoost MAE Results" width="1000">
 
-*Figure 3: XGBoost performance using masked autoencoder (MAE) pooling of ESM-C embeddings.*
+*Figure 3: XGBoost performance using masked autoencoder (MAE) of ESM-C embeddings.*
 
 ### 2.2 Performance Analysis
 
 **Key Findings:**
 - **Competitive Performance**: Our MAE-based approach demonstrates competitive performance against the established FG-based XGBoost baseline from literature
-- **Model Selection**: XGBoost consistently outperforms other traditional ML classifiers (Logistic Regression, SVM)
-- **Pooling Strategy Impact**: Significant performance improvement (approximately 2-3% increase in AUC) when transitioning from mean pooling to MAE-based representations
+- **Model Selection**: XGBoost outperforms other traditional ML classifiers (Logistic Regression, SVM)
 - **Dataset Characteristics**: Test2 dataset presents a realistic challenge with 9.09% positive and 90.91% negative samples, closely mimicking real-world PPI prediction scenarios
 
 ### 2.3 Limitations and Current Challenges
