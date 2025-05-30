@@ -350,38 +350,88 @@ def train(train_data, val_data, embeddings_dict, epochs=10, max_len=1000): # TOD
     }, final_path)
     print(f'训练结束，最终模型已保存到 {final_path}')
 
+    # Extract embeddings for both training and validation sets
+    print("\n" + "="*60)
+    print("EXTRACTING EMBEDDINGS FOR TRAINING AND VALIDATION SETS")
+    print("="*60)
+    
+    print("Extracting embeddings for training set...")
+    train_embeddings, train_interactions = extract_embeddings_for_classification(model, train_dataset, device)
+    
+    print("Extracting embeddings for validation set...")
+    val_embeddings, val_interactions = extract_embeddings_for_classification(model, val_dataset, device)
+    
+    # Create combined DataFrames with original data + MAE embeddings
+    print("Creating combined datasets with MAE embeddings...")
+    
+    # For training set
+    train_data_with_embeddings = train_data.copy()
+    # Add MAE embeddings as the last column
+    train_data_with_embeddings['mae_embeddings'] = [emb for emb in train_embeddings]
+    
+    # For validation set  
+    val_data_with_embeddings = val_data.copy()
+    # Add MAE embeddings as the last column
+    val_data_with_embeddings['mae_embeddings'] = [emb for emb in val_embeddings]
+    
+    # Save to pickle files
+    train_output_path = f'data/train_data_with_mae_embeddings_{ts}.pkl'
+    val_output_path = f'data/val_data_with_mae_embeddings_{ts}.pkl'
+    
+    print(f"Saving training data with embeddings to {train_output_path}")
+    with open(train_output_path, 'wb') as f:
+        pickle.dump(train_data_with_embeddings, f)
+    
+    print(f"Saving validation data with embeddings to {val_output_path}")
+    with open(val_output_path, 'wb') as f:
+        pickle.dump(val_data_with_embeddings, f)
+    
+    # Save embeddings separately as numpy arrays for convenience
+    embeddings_output_path = f'data/mae_embeddings_{ts}.npz'
+    print(f"Saving embeddings as numpy arrays to {embeddings_output_path}")
+    np.savez(embeddings_output_path,
+             train_embeddings=train_embeddings,
+             train_labels=train_interactions,
+             val_embeddings=val_embeddings,
+             val_labels=val_interactions)
+    
+    print(f"\n=== EMBEDDING EXTRACTION SUMMARY ===")
+    print(f"Training set: {len(train_embeddings)} samples, embedding shape: {train_embeddings.shape}")
+    print(f"Validation set: {len(val_embeddings)} samples, embedding shape: {val_embeddings.shape}")
+    print(f"Embedding dimension: {train_embeddings.shape[1]}")
+    print(f"Files saved:")
+    print(f"  - {train_output_path}")
+    print(f"  - {val_output_path}")
+    print(f"  - {embeddings_output_path}")
+
     return history
 
 
-def extract_embeddings(model, dataloader, device, save_path=None):
-    """Extract pooled embeddings for all protein pairs"""
+def extract_embeddings_for_classification(model, dataset, device, batch_size=8):
+    """Extract embeddings for all protein pairs in the dataset"""
+    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False, 
+                          num_workers=2, collate_fn=collate_fn)
+    
     model.eval()
     all_embeddings = []
     all_interactions = []
-    all_protein_pairs = []
     
     with torch.no_grad():
         for batch_idx, (batch, lengths, interactions) in enumerate(dataloader):
             batch = batch.to(device).float()
             lengths = lengths.to(device)
             
+            # Get compressed embeddings from the MAE
             _, compressed, _ = model(batch, lengths)
             
             all_embeddings.append(compressed.cpu().numpy())
             all_interactions.append(interactions.numpy())
             
             if batch_idx % 100 == 0:
-                print(f"Processed {batch_idx} batches...")
+                print(f"  Processed {batch_idx} batches...")
     
-    all_embeddings = np.vstack(all_embeddings)
-    all_interactions = np.concatenate(all_interactions)
-    
-    print(f"Extracted embeddings shape: {all_embeddings.shape}")
-    
-    if save_path:
-        np.save(save_path + '_embeddings.npy', all_embeddings)
-        np.save(save_path + '_interactions.npy', all_interactions)
-        print(f"Saved embeddings to {save_path}_embeddings.npy")
+    all_embeddings = np.vstack(all_embeddings)  # Shape: (n_samples, 960)
+    all_interactions = np.concatenate(all_interactions)  # Shape: (n_samples,)
     
     return all_embeddings, all_interactions
 
