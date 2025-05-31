@@ -323,21 +323,21 @@ def train(train_data, val_data, embeddings_dict, epochs=10, max_len=1000): # TOD
 
         print(f'--- Epoch {epoch} 完成，Train Loss={train_loss:.4f}，Val Loss={val_loss:.4f}，Best Val Loss={best_loss:.4f} ---')
         
-        # 绘制损失曲线
-        plt.figure(figsize=(10, 6))
-        plt.plot(history['train'], label='Training Loss', color='blue')
-        plt.plot(history['val'], label='Validation Loss', color='red')
-        plt.xlabel('Epoch')
-        plt.ylabel('Loss')
-        plt.title(f'Training and Validation Loss Curves (Epoch {epoch})')
-        plt.legend()
-        plt.grid(True)
-        plt.savefig(f'logs/loss_curve_pairs_{ts}.png')
-        plt.close()
+    # 绘制损失曲线
+    plt.figure(figsize=(10, 6))
+    plt.plot(history['train'], label='Training Loss', color='blue')
+    plt.plot(history['val'], label='Validation Loss', color='red')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.title(f'Training and Validation Loss Curves (Epoch {epoch})')
+    plt.legend()
+    plt.grid(True)
+    plt.savefig(f'logs/loss_curve_pairs_{ts}.png')
+    plt.close()
 
-        gc.collect()
-        if device.type == "cuda":
-            torch.cuda.empty_cache()
+    gc.collect()
+    if device.type == "cuda":
+        torch.cuda.empty_cache()
         
     # 训练结束保存最终模型
     final_path = f'models/mae_pairs_final_{ts}.pth'
