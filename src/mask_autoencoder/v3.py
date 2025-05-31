@@ -1,3 +1,6 @@
+"""
+    train and save model
+"""
 import numpy as np
 import pandas as pd
 import os
@@ -15,7 +18,7 @@ import gc
 import pickle
 
 class ProteinPairDataset(Dataset):
-    def __init__(self, pairs_df, embeddings_dict, max_len=1502):
+    def __init__(self, pairs_df, embeddings_dict, max_len=3004):
         """
         Args:
             pairs_df: DataFrame with columns ['uniprotID_A', 'uniprotID_B', ...]
@@ -45,26 +48,42 @@ class ProteinPairDataset(Dataset):
         
         # Get embeddings for both proteins
         emb_A = torch.from_numpy(self.embeddings_dict[row['uniprotID_A']])  # (seq_len_A, 960)
-        emb_B = torch.from_numpy(self.embeddings_dict[row['uniprotID_B']])  # (seq_len_B, 960)
-        
-        # Concatenate the embeddings along the sequence dimension
-        combined_emb = torch.cat([emb_A, emb_B], dim=0)  # (seq_len_A + seq_len_B, 960)
-        seq_len = combined_emb.shape[0]
+        emb_B = torch.from_numpy(self.embeddings_dict[row['uniprotID_B']])  # (seq_len_B, 960)    
+        seq_len_A = emb_A.shape[0]
+        seq_len_B = emb_B.shape[0]
+        single_len=self.max_len//2
 
-        need_cleanup = False
-        # Padding to max_len
-        if seq_len < self.max_len:
-            pad_size = (self.max_len - seq_len, 960)
-            padding = torch.zeros(pad_size, dtype=combined_emb.dtype)
-            combined_emb = torch.cat([combined_emb, padding], dim=0)
-            need_cleanup = True
-        else:
-            combined_emb = combined_emb[:self.max_len]  # truncate if needed
-            seq_len = self.max_len
-            
-        if need_cleanup:
-            del padding
-            
+        if seq_len_A >= single_len and seq_len_B >= single_len:
+            emb_A=emb_A[:single_len]
+            emb_B=emb_B[:single_len]
+            combined_emb = torch.cat([emb_A, emb_B], dim=0)  # (seq_len_A + seq_len_B, 960)    
+            seq_len=self.max_len
+        elif seq_len_A < single_len and seq_len_B >= single_len:
+            combined_emb = torch.cat([emb_A, emb_B], dim=0)
+            seq_len=combined_emb.shape[0]
+            if seq_len < self.max_len:
+                pad_size = (self.max_len - seq_len, 960)
+                padding = torch.zeros(pad_size, dtype=combined_emb.dtype)
+                combined_emb = torch.cat([combined_emb, padding], dim=0)
+            else:
+                combined_emb = combined_emb[:self.max_len]
+                seq_len=self.max_len
+        elif seq_len_A >= single_len and seq_len_B < single_len:
+            if (seq_len_A +seq_len_B) >= self.max_len:
+                emb_A=emb_A[:self.max_len-seq_len_B]
+                combined_emb = torch.cat([emb_A, emb_B], dim=0)
+                seq_len=self.max_len
+            else:
+                pad_size = (self.max_len - seq_len_A-seq_len_B, 960)
+                padding = torch.zeros(pad_size, dtype=emb_A.dtype)
+                combined_emb = torch.cat([emb_A, emb_B,padding], dim=0)
+                seq_len=seq_len_A+seq_len_B
+        else: # both short
+            pad_size = (self.max_len - seq_len_A-seq_len_B, 960)
+            padding = torch.zeros(pad_size, dtype=emb_A.dtype)
+            combined_emb = torch.cat([emb_A, emb_B,padding], dim=0)
+            seq_len=seq_len_A+seq_len_B
+
         return {
             "seq": combined_emb.clone(),        # (max_len, 960)
             "padding_start": seq_len,           # int
@@ -72,6 +91,26 @@ class ProteinPairDataset(Dataset):
             "uniprotID_B": row['uniprotID_B'],  # string
             "isInteraction": row['isInteraction'] if 'isInteraction' in row else -1  # int
         }
+        # # Padding
+        # if seq_len_A < single_len:
+        #     combined_emb = torch.cat([emb_A, emb_B], dim=0)  # (seq_len_A + seq_len_B, 960) 
+        #     pad_size = (single_len - seq_len_A, 960)
+        #     padding = torch.zeros(pad_size, dtype=combined_emb.dtype)
+        #     combined_emb = torch.cat([combined_emb, padding], dim=0)
+        # else:
+        #     combined_emb = combined_emb[:single_len]  # truncate if needed
+        #     seq_len_A = single_len
+
+        # if seq_len_B < single_len:
+        #     pad_size = (single_len - seq_len_B, 960)
+        #     padding = torch.zeros(pad_size, dtype=combined_emb.dtype)
+        #     combined_emb = torch.cat([combined_emb, padding], dim=0)
+        # else:
+        #     combined_emb = combined_emb[:single_len]  # truncate if needed
+        #     seq_len_B = single_len
+
+        # combined_emb = torch.cat([emb_A, emb_B], dim=0)  # (seq_len_A + seq_len_B, 960)    
+
 
 def collate_fn(batch):
     seqs = torch.stack([item["seq"] for item in batch], dim=0)              # (B, L, 960)
@@ -88,7 +127,7 @@ class TransformerMAE(nn.Module):
                  num_layers=4,
                  nhead=16,
                  ff_dim=2048,
-                 max_len=1502):
+                 max_len=3004):
         super().__init__()
         self.mask_ratio = mask_ratio
         self.max_len = max_len
@@ -201,15 +240,15 @@ def plot_reconstruction(orig, recon, mask_bool, epoch, batch_idx, ts):
 def load_data():
     """Load training data, validation data, and embeddings"""
     print("Loading training data...")
-    with open('data/full_dataset/train_data.pkl', 'rb') as f:
+    with open('data/train_data.pkl', 'rb') as f:
         train_data = pickle.load(f)
     
     print("Loading validation data...")
-    with open('data/full_dataset/validation_data.pkl', 'rb') as f:
+    with open('data/validation_data.pkl', 'rb') as f:
         val_data = pickle.load(f)
     
     print("Loading embeddings (this might take a while)...")
-    with open('data/full_dataset/embeddings/embeddings_standardized.pkl', 'rb') as f:
+    with open('../ESM/embeddings_standardized.pkl', 'rb') as f:
         embeddings_dict = pickle.load(f)
     
     print(f"Loaded {len(train_data)} training pairs, {len(val_data)} validation pairs")
@@ -218,7 +257,7 @@ def load_data():
     return train_data, val_data, embeddings_dict
 
 
-def train(train_data, val_data, embeddings_dict, epochs=10, max_len=1000): # TODO: max_len=?
+def train(train_data, val_data, embeddings_dict, epochs=10, max_len=3004): # TODO: max_len=?
     """Train the MAE on protein pairs"""
     
     # --- 准备数据 ---
@@ -350,59 +389,59 @@ def train(train_data, val_data, embeddings_dict, epochs=10, max_len=1000): # TOD
     }, final_path)
     print(f'训练结束，最终模型已保存到 {final_path}')
 
-    # Extract embeddings for both training and validation sets
-    print("\n" + "="*60)
-    print("EXTRACTING EMBEDDINGS FOR TRAINING AND VALIDATION SETS")
-    print("="*60)
+    # # Extract embeddings for both training and validation sets
+    # print("\n" + "="*60)
+    # print("EXTRACTING EMBEDDINGS FOR TRAINING AND VALIDATION SETS")
+    # print("="*60)
     
-    print("Extracting embeddings for training set...")
-    train_embeddings, train_interactions = extract_embeddings_for_classification(model, train_dataset, device)
+    # print("Extracting embeddings for training set...")
+    # train_embeddings, train_interactions = extract_embeddings_for_classification(model, train_dataset, device)
     
-    print("Extracting embeddings for validation set...")
-    val_embeddings, val_interactions = extract_embeddings_for_classification(model, val_dataset, device)
+    # print("Extracting embeddings for validation set...")
+    # val_embeddings, val_interactions = extract_embeddings_for_classification(model, val_dataset, device)
     
-    # Create combined DataFrames with original data + MAE embeddings
-    print("Creating combined datasets with MAE embeddings...")
+    # # Create combined DataFrames with original data + MAE embeddings
+    # print("Creating combined datasets with MAE embeddings...")
     
-    # For training set
-    train_data_with_embeddings = train_data.copy()
-    # Add MAE embeddings as the last column
-    train_data_with_embeddings['mae_embeddings'] = [emb for emb in train_embeddings]
+    # # For training set
+    # train_data_with_embeddings = train_data.copy()
+    # # Add MAE embeddings as the last column
+    # train_data_with_embeddings['mae_embeddings'] = [emb for emb in train_embeddings]
     
-    # For validation set  
-    val_data_with_embeddings = val_data.copy()
-    # Add MAE embeddings as the last column
-    val_data_with_embeddings['mae_embeddings'] = [emb for emb in val_embeddings]
+    # # For validation set  
+    # val_data_with_embeddings = val_data.copy()
+    # # Add MAE embeddings as the last column
+    # val_data_with_embeddings['mae_embeddings'] = [emb for emb in val_embeddings]
     
-    # Save to pickle files
-    train_output_path = f'data/train_data_with_mae_embeddings_{ts}.pkl'
-    val_output_path = f'data/val_data_with_mae_embeddings_{ts}.pkl'
+    # # Save to pickle files
+    # train_output_path = f'data/train_data_with_mae_embeddings_{ts}.pkl'
+    # val_output_path = f'data/val_data_with_mae_embeddings_{ts}.pkl'
     
-    print(f"Saving training data with embeddings to {train_output_path}")
-    with open(train_output_path, 'wb') as f:
-        pickle.dump(train_data_with_embeddings, f)
+    # print(f"Saving training data with embeddings to {train_output_path}")
+    # with open(train_output_path, 'wb') as f:
+    #     pickle.dump(train_data_with_embeddings, f)
     
-    print(f"Saving validation data with embeddings to {val_output_path}")
-    with open(val_output_path, 'wb') as f:
-        pickle.dump(val_data_with_embeddings, f)
+    # print(f"Saving validation data with embeddings to {val_output_path}")
+    # with open(val_output_path, 'wb') as f:
+    #     pickle.dump(val_data_with_embeddings, f)
     
-    # Save embeddings separately as numpy arrays for convenience
-    embeddings_output_path = f'data/mae_embeddings_{ts}.npz'
-    print(f"Saving embeddings as numpy arrays to {embeddings_output_path}")
-    np.savez(embeddings_output_path,
-             train_embeddings=train_embeddings,
-             train_labels=train_interactions,
-             val_embeddings=val_embeddings,
-             val_labels=val_interactions)
+    # # Save embeddings separately as numpy arrays for convenience
+    # embeddings_output_path = f'data/mae_embeddings_{ts}.npz'
+    # print(f"Saving embeddings as numpy arrays to {embeddings_output_path}")
+    # np.savez(embeddings_output_path,
+    #          train_embeddings=train_embeddings,
+    #          train_labels=train_interactions,
+    #          val_embeddings=val_embeddings,
+    #          val_labels=val_interactions)
     
-    print(f"\n=== EMBEDDING EXTRACTION SUMMARY ===")
-    print(f"Training set: {len(train_embeddings)} samples, embedding shape: {train_embeddings.shape}")
-    print(f"Validation set: {len(val_embeddings)} samples, embedding shape: {val_embeddings.shape}")
-    print(f"Embedding dimension: {train_embeddings.shape[1]}")
-    print(f"Files saved:")
-    print(f"  - {train_output_path}")
-    print(f"  - {val_output_path}")
-    print(f"  - {embeddings_output_path}")
+    # print(f"\n=== EMBEDDING EXTRACTION SUMMARY ===")
+    # print(f"Training set: {len(train_embeddings)} samples, embedding shape: {train_embeddings.shape}")
+    # print(f"Validation set: {len(val_embeddings)} samples, embedding shape: {val_embeddings.shape}")
+    # print(f"Embedding dimension: {train_embeddings.shape[1]}")
+    # print(f"Files saved:")
+    # print(f"  - {train_output_path}")
+    # print(f"  - {val_output_path}")
+    # print(f"  - {embeddings_output_path}")
 
     return history
 
@@ -441,6 +480,6 @@ if __name__ == '__main__':
     train_data, val_data, embeddings_dict = load_data()
     
     # Train the model
-    history = train(train_data, val_data, embeddings_dict, epochs=60, max_len=1000)
+    history = train(train_data, val_data, embeddings_dict, epochs=30, max_len=2000)
     
     print("Training completed successfully!") 
