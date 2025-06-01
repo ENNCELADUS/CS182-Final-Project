@@ -1,16 +1,19 @@
 torch>=2.1.0
 numpy>=1.21.0
+pandas>=1.4.0
+scikit-learn>=1.1.0
+matplotlib>=3.5.0
 tqdm>=4.64.0
+pickle5>=0.0.11
 
-# Optional dependencies
-pytorch-lightning>=2.0.0  # For Lightning training
-tensorboard>=2.10.0       # For logging
-matplotlib>=3.5.0         # For plotting
-seaborn>=0.11.0          # For visualization
-scikit-learn>=1.1.0      # For metrics and utilities
-pandas>=1.4.0            # For data handling
+# Optional but recommended dependencies
+seaborn>=0.11.0          # For enhanced visualization
+tensorboard>=2.10.0      # For logging and monitoring
+pytorch-lightning>=2.0.0 # For advanced training features
 
 # Development dependencies (optional)
 pytest>=7.0.0            # For testing
 black>=22.0.0            # For code formatting
-flake8>=5.0.0            # For linting 
+flake8>=5.0.0            # For linting
+jupyter>=1.0.0           # For notebook development
+ipython>=8.0.0           # For interactive development
