@@ -16,6 +16,7 @@ from tqdm import tqdm
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
 import math
 import sys
+import time  # Add time import for timing measurements
 
 
 # ✅ ADD GPU MONITORING FUNCTION
@@ -108,15 +109,21 @@ def load_data():
 
     print("\nLoading protein embeddings...", flush=True)
     print("🔥 Loading embeddings_standardized.pkl (this might take a while)...", flush=True)
+    embedding_start_time = time.time()
     protein_embeddings = pickle.load(open(embeddings_path, 'rb'))
-    print(f"🔥 Embeddings loaded! Count: {len(protein_embeddings)}", flush=True)
+    embedding_load_time = time.time() - embedding_start_time
+    print(f"🔥 Embeddings loaded in {embedding_load_time:.2f} seconds! Count: {len(protein_embeddings)}", flush=True)
 
+    print("🔥 About to print train_data.head()...", flush=True)
     print(train_data.head(), flush=True)
+    
+    print("🔥 About to print first 5 protein embedding shapes...", flush=True)
     for i, (key, value) in enumerate(protein_embeddings.items()):
         if i >= 5:
             break
         print(f"Protein ID: {key}, Embedding shape: {value.shape}", flush=True)
     
+    print("🔥 Finished examining embeddings, returning from load_data...", flush=True)
     return train_data, cv_data, test1_data, test2_data, protein_embeddings
 
 
@@ -181,20 +188,26 @@ class ProteinPairDataset(Dataset):
         
         # Auto-detect column names if not provided
         if protein_a_col is None or protein_b_col is None or interaction_col is None:
+            print("🔥 Auto-detecting column names...", flush=True)
             self.protein_a_col, self.protein_b_col, self.interaction_col = detect_column_names(pairs_df, embeddings_dict)
         else:
             self.protein_a_col = protein_a_col
             self.protein_b_col = protein_b_col
             self.interaction_col = interaction_col
         
-        # Filter valid pairs
-        valid_indices = []
-        for idx in range(len(self.pairs_df)):
-            row = self.pairs_df.iloc[idx]
-            if (row[self.protein_a_col] in self.embeddings_dict and 
-                row[self.protein_b_col] in self.embeddings_dict):
-                valid_indices.append(idx)
+        print(f"🔥 About to filter valid pairs from {len(self.pairs_df)} total pairs...", flush=True)
+        start_time = time.time()
         
+        # Optimized filtering using vectorized operations
+        protein_a_valid = self.pairs_df[self.protein_a_col].isin(embeddings_dict)
+        protein_b_valid = self.pairs_df[self.protein_b_col].isin(embeddings_dict)
+        both_valid = protein_a_valid & protein_b_valid
+        
+        # Get indices where both proteins have embeddings
+        valid_indices = self.pairs_df.index[both_valid].tolist()
+        
+        filtering_time = time.time() - start_time
+        print(f"🔥 Finished filtering pairs in {filtering_time:.2f} seconds. Found {len(valid_indices)} valid pairs.", flush=True)
         self.valid_indices = valid_indices
         print(f"Dataset: {len(valid_indices)} valid pairs out of {len(self.pairs_df)} total pairs", flush=True)
     
@@ -661,10 +674,17 @@ def train_model(train_data, val_data, embeddings_dict,
     """
     Train the enhanced protein interaction prediction model
     """
+    print("🔥 ENTERED train_model function", flush=True)
+    
     # Create datasets
+    print("🔥 About to create train_dataset...", flush=True)
     train_dataset = ProteinPairDataset(train_data, embeddings_dict)
+    
+    print("🔥 About to create val_dataset...", flush=True)
     val_dataset = ProteinPairDataset(val_data, embeddings_dict)
 
+    print("🔥 About to create data loaders...", flush=True)
+    
     # Create data loaders
     train_loader = DataLoader(
         train_dataset, 
@@ -1301,6 +1321,9 @@ if __name__ == '__main__':
         # Load data using the new function
         train_data, cv_data, test1_data, test2_data, protein_embeddings = load_data()
         
+        print("🔥 SUCCESSFULLY RETURNED FROM load_data()!", flush=True)
+        sys.stdout.flush()
+        
         print(f"\nData loaded successfully:", flush=True)
         print(f"Training data: {len(train_data)} pairs", flush=True)
         print(f"Validation data: {len(cv_data)} pairs", flush=True) 
@@ -1413,7 +1436,7 @@ if __name__ == '__main__':
             best_model_info = best_models[best_config]
             
             print(f"\n" + "="*60, flush=True)
-            print(f"ENHANCED MODEL SUMMARY", flush=True)
+            print("ENHANCED MODEL SUMMARY", flush=True)
             print("="*60, flush=True)
             print(f"Architecture Features:", flush=True)
             print(f"  - RoPE positional encoding", flush=True)
