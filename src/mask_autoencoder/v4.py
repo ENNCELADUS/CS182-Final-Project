@@ -693,7 +693,7 @@ class ProteinInteractionClassifier(nn.Module):
 
 
 def train_model(train_data, val_data, embeddings_dict, 
-                epochs=3, batch_size=2, learning_rate=3e-4,  # ✅ REDUCED from 50 to 3 for initial testing
+                epochs=3, batch_size=16, learning_rate=3e-4,  # ✅ INCREASED from 2 to 16
                 use_variable_length=True,
                 save_every_epochs=1,  # Save checkpoint every N epochs
                 device='cuda' if torch.cuda.is_available() else 'cpu'):
@@ -757,7 +757,7 @@ def train_model(train_data, val_data, embeddings_dict,
     print(f"Validation batches per epoch: {num_val_batches}")
     print(f"Total epochs: {epochs}")
     print(f"Total training steps: {total_train_steps:,}")
-    print(f"Progress reports every 50 batches")
+    print(f"Progress reports every 10 batches")
     print(f"Checkpoints saved every {save_every_epochs} epochs")
     
     print(f"🔥 Starting GPU detection...", flush=True)
@@ -928,6 +928,9 @@ def train_model(train_data, val_data, embeddings_dict,
     sys.stdout.flush()
     
     for epoch in range(1, epochs + 1):
+        print(f"🔥 STARTING EPOCH {epoch}/{epochs}...", flush=True)
+        sys.stdout.flush()
+        
         # Training phase
         model.train()
         train_losses = []
@@ -935,7 +938,14 @@ def train_model(train_data, val_data, embeddings_dict,
         train_probs = []
         train_labels = []
         
+        print(f"🔥 Processing training batches (total: {num_train_batches})...", flush=True)
+        sys.stdout.flush()
+        
         for batch_idx, (emb_a, emb_b, lengths_a, lengths_b, interactions) in enumerate(train_loader):
+            if batch_idx == 0:
+                print(f"🔥 Processing first batch of epoch {epoch}...", flush=True)
+                sys.stdout.flush()
+            
             # Move to device
             emb_a = emb_a.to(device).float()
             emb_b = emb_b.to(device).float()
@@ -965,13 +975,13 @@ def train_model(train_data, val_data, embeddings_dict,
             # Clear intermediate tensors
             del emb_a, emb_b, lengths_a, lengths_b, interactions, logits, loss, probs, preds
 
-            if batch_idx % 50 == 0:
+            if batch_idx % 10 == 0:  # ✅ CHANGED from 50 to 10 for faster feedback
                 progress = (epoch - 1) * num_train_batches + batch_idx
                 gpu_memory_info = get_gpu_memory_info()  # ✅ USE NEW MONITORING FUNCTION
                 print(f'Epoch {epoch}/{epochs} Batch {batch_idx}/{num_train_batches} '
-                      f'({progress}/{total_train_steps} total) Loss: {train_losses[-1]:.4f}, {gpu_memory_info}')
+                      f'({progress}/{total_train_steps} total) Loss: {train_losses[-1]:.4f}, {gpu_memory_info}', flush=True)
                 
-                # Clear cache every 50 batches
+                # Clear cache every 10 batches
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
         
@@ -1269,6 +1279,9 @@ def resume_training_from_checkpoint(checkpoint_path, train_data, val_data, embed
     criterion = nn.BCEWithLogitsLoss()
     
     for epoch in range(start_epoch, start_epoch + additional_epochs):
+        print(f"🔥 STARTING EPOCH {epoch}/{epochs}...", flush=True)
+        sys.stdout.flush()
+        
         # Training phase
         model.train()
         train_losses = []
@@ -1276,7 +1289,14 @@ def resume_training_from_checkpoint(checkpoint_path, train_data, val_data, embed
         train_probs = []
         train_labels = []
         
+        print(f"🔥 Processing training batches (total: {num_train_batches})...", flush=True)
+        sys.stdout.flush()
+        
         for batch_idx, (emb_a, emb_b, lengths_a, lengths_b, interactions) in enumerate(train_loader):
+            if batch_idx == 0:
+                print(f"🔥 Processing first batch of epoch {epoch}...", flush=True)
+                sys.stdout.flush()
+            
             emb_a = emb_a.to(device).float()
             emb_b = emb_b.to(device).float()
             lengths_a = lengths_a.to(device)
@@ -1299,7 +1319,9 @@ def resume_training_from_checkpoint(checkpoint_path, train_data, val_data, embed
                 train_probs.extend(probs.cpu().numpy())
                 train_labels.extend(interactions.cpu().numpy())
             
-            if batch_idx % 50 == 0:
+            if batch_idx % 10 == 0:  # ✅ CHANGED from 50 to 10 for faster feedback
+                progress = (epoch - 1) * num_train_batches + batch_idx
+                gpu_memory_info = get_gpu_memory_info()  # ✅ USE NEW MONITORING FUNCTION
                 print(f'Resumed Epoch {epoch} Batch {batch_idx} Loss: {loss.item():.4f}')
         
         # Validation phase (same as train_model)
@@ -1541,7 +1563,7 @@ if __name__ == '__main__':
                     train_data, cv_data, protein_embeddings,
                     use_variable_length=config['use_variable_length'],
                     epochs=3,  # ✅ REDUCED from 50 to 3 for initial testing
-                    batch_size=2,  # ✅ REDUCED from 8 to 2 to prevent memory issues
+                    batch_size=16,  # ✅ INCREASED from 2 to 16
                     learning_rate=3e-4,  # ✅ INCREASED FROM 1e-4 to 3e-4
                     save_every_epochs=1  # Save checkpoints every 1 epochs
                 )

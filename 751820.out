@@ -1,0 +1,227 @@
+🚀 STARTING PPI TRAINING JOB - Mon 02 Jun 2025 08:50:09 PM CST
+Job ID: 751820
+Node: sist_gpu70
+==========================
+✅ Project directory: /public/home/CS182/wangar2023-cs182/CS182-Final-Project
+
+🔍 SYSTEM DIAGNOSTICS
+======================
+📊 Memory Info:
+              total        used        free      shared  buff/cache   available
+Mem:           377G         17G         31G        3.1G        328G        351G
+Swap:           31G        3.0G         29G
+
+💾 CPU Info:
+CPU(s):                48
+Thread(s) per core:    2
+Model name:            Intel(R) Xeon(R) CPU E5-2697 v2 @ 2.70GHz
+NUMA node0 CPU(s):     0-11,24-35
+NUMA node1 CPU(s):     12-23,36-47
+
+🎮 GPU Diagnostics:
+NVIDIA GeForce RTX 2080 Ti, 11264, 8016, 0
+NVIDIA GeForce RTX 2080 Ti, 11264, 7898, 0
+
+🔧 CUDA Environment:
+CUDA_VISIBLE_DEVICES: 0,1
+SLURM GPU IDs: 
+
+🐍 Python Environment Check:
+Python version: 3.10.16 (main, Dec 11 2024, 16:24:50) [GCC 11.2.0]
+PyTorch version: 2.6.0+cu124
+CUDA available: True
+CUDA version: 12.4
+GPU count: 2
+  GPU 0: NVIDIA GeForce RTX 2080 Ti (10.7 GB)
+    Memory test: ✅ PASSED
+  GPU 1: NVIDIA GeForce RTX 2080 Ti (10.7 GB)
+    Memory test: ✅ PASSED
+NumPy version: 2.2.6
+Pandas version: 2.2.3
+
+🛠️ APPLYING MEMORY OPTIMIZATIONS
+================================
+✅ Memory optimization settings applied
+   - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+   - OMP_NUM_THREADS=8
+   - MKL_NUM_THREADS=8
+
+🔍 PRE-TRAINING VALIDATION
+==========================
+📁 Checking data files...
+✅ Data directory exists
+  ✅ train_data.pkl (8.5M)
+  ✅ validation_data.pkl (4.6M)
+  ✅ test1_data.pkl (6.6M)
+  ✅ test2_data.pkl (12M)
+  ✅ embeddings_standardized.pkl (23G)
+
+📁 Preparing output directories...
+✅ Output directories ready
+
+🎯 STARTING TRAINING
+===================
+Start time: Mon 02 Jun 2025 08:50:45 PM CST
+Training command: python src/mask_autoencoder/v4.py
+
+🔥 SCRIPT STARTED - Python v4.py is running!
+Enhanced Protein-Protein Interaction Prediction v4
+============================================================
+Features: RoPE encoding, 16-layer transformers, cross-attention, enhanced MLP
+============================================================
+🔥 ABOUT TO LOAD DATA...
+🔥 Inside load_data function
+🔥 Current directory: /public/home/CS182/wangar2023-cs182/CS182-Final-Project/src/mask_autoencoder
+Script directory: /public/home/CS182/wangar2023-cs182/CS182-Final-Project/src/mask_autoencoder
+Project root: /public/home/CS182/wangar2023-cs182/CS182-Final-Project
+Loading data...
+Looking for data in: /public/home/CS182/wangar2023-cs182/CS182-Final-Project/data/full_dataset
+🔥 Checking file existence...
+✅ Found: train_data.pkl
+✅ Found: validation_data.pkl
+✅ Found: test1_data.pkl
+✅ Found: test2_data.pkl
+✅ Found: embeddings_standardized.pkl
+🔥 Loading pickle files...
+🔥 Loading train_data.pkl...
+🔥 Loading validation_data.pkl...
+🔥 Loading test1_data.pkl...
+🔥 Loading test2_data.pkl...
+
+Examining training data structure:
+DataFrame columns: ['uniprotID_A', 'uniprotID_B', 'isInteraction', 'trainTest', 'sequence_A', 'sequence_B']
+First row sample: {'uniprotID_A': 'O43759', 'uniprotID_B': 'P59991', 'isInteraction': 0, 'trainTest': 'train', 'sequence_A': 'MEGGAYGAGKAGGAFDPYTLVRQPHTILRVVSWLFSIVVFGSIVNEGYLNSASEGEEFCIYNRNPNACSYGVAVGVLAFLTCLLYLALDVYFPQISSVKDRKKAVLSDIGVSAFWAFLWFVGFCYLANQWQVSKPKDNPLNEGTDAARAAIAFSFFSIFTWAGQAVLAFQRYQIGADSALFSQDYMDPSQDSSMPYAPYVEPTGPDPAGMGGTYQQPANTFDTEPQGYQSQGY', 'sequence_B': 'MCHTSCSSGCQPACCAPSPCQPACCVPSSCQASCCVPVGCQSSVCVPVSFKPAVCLPVSCQSSVCVPMSFKSAVCVPVSCQSSVCVPVSCRPIVCAAPSCQSSLCVPVSCRPVVYAAPSCQSSGCCQPSCTSVLCRPISYSISSCC'}
+
+Loading protein embeddings...
+🔥 Loading embeddings_standardized.pkl (this might take a while)...
+🔥 Embeddings loaded! Count: 12026
+🔥 ABOUT TO PRINT TRAIN_DATA.HEAD()...
+Training data shape: (85329, 6)
+Sample row keys: ['uniprotID_A', 'uniprotID_B', 'isInteraction', 'trainTest', 'sequence_A', 'sequence_B']
+First protein A: O43759
+First protein B: P59991
+First interaction: 0
+🔥 ABOUT TO LOOP THROUGH PROTEIN EMBEDDINGS...
+Protein ID: Q00994, Embedding shape: (113, 960)
+Protein ID: Q8TC90, Embedding shape: (408, 960)
+Protein ID: Q9UJY1, Embedding shape: (198, 960)
+Protein ID: Q9Y6Q6, Embedding shape: (618, 960)
+Protein ID: A4QMS7, Embedding shape: (149, 960)
+🔥 RETURNING FROM LOAD_DATA FUNCTION...
+🔥 DATA LOADING COMPLETED SUCCESSFULLY!
+
+Data loaded successfully:
+Training data: 85329 pairs
+Validation data: 21333 pairs
+Test1 data: 24898 pairs
+Test2 data: 136939 pairs
+Protein embeddings: 12026 proteins
+🔥 ABOUT TO CHECK FOR CHECKPOINTS...
+🔍 Checkpoint detection disabled - starting fresh training...
+🔥 STARTING TRAINING CONFIGURATIONS...
+🔥 CONFIGURATIONS DEFINED: 2 configs
+🔥 ENTERING TRAINING LOOP...
+🔥 STARTING CONFIG: variable_length
+
+============================================================
+Training enhanced model with variable_length embeddings...
+============================================================
+🔥 CALLING train_model() for variable_length...
+🔥 INSIDE train_model() - START
+🔥 Parameters: epochs=3, batch_size=2, variable_length=True
+🔥 Creating ProteinPairDataset for training...
+Using columns: Protein A = 'uniprotID_A', Protein B = 'uniprotID_B', Interaction = 'isInteraction'
+🔥 Dataset filtering: Processing 85329 pairs...
+Dataset: 85329 valid pairs out of 85329 total pairs
+🔥 Creating ProteinPairDataset for validation...
+Using columns: Protein A = 'uniprotID_A', Protein B = 'uniprotID_B', Interaction = 'isInteraction'
+🔥 Dataset filtering: Processing 21333 pairs...
+Dataset: 21333 valid pairs out of 21333 total pairs
+🔥 Creating DataLoader for training dataset (85329 samples)...
+🔥 Creating DataLoader for validation dataset (21333 samples)...
+🔥 DataLoaders created successfully!
+🔥 Calculating training statistics...
+📊 TRAINING STATISTICS:
+Training samples: 85,329
+Validation samples: 21,333
+Batch size: 2
+Training batches per epoch: 42665
+Validation batches per epoch: 10667
+Total epochs: 3
+Total training steps: 127,995
+Progress reports every 50 batches
+Checkpoints saved every 1 epochs
+🔥 Starting GPU detection...
+🔥 CUDA available, clearing cache...
+
+🔍 GPU HEALTH CHECK:
+Available GPUs: 2
+🔥 Testing GPU 0...
+  GPU 0: NVIDIA GeForce RTX 2080 Ti (10.7GB) - ✅ Working
+🔥 Testing GPU 1...
+  GPU 1: NVIDIA GeForce RTX 2080 Ti (10.7GB) - ✅ Working
+Working GPUs: [0, 1]
+Will use DataParallel with 2 GPUs
+GPU Memory before training: 0.00 GB
+🔥 Creating enhanced model...
+🔥 Model created and moved to cuda!
+🔥 Setting up DataParallel with GPUs: [0, 1]
+🔥 DataParallel setup successful!
+Batch size per GPU: 1
+Effective total batch size: 2
+🔥 Creating optimizer and scheduler...
+🔥 Setting up training variables...
+🔥 Creating directories...
+Training enhanced model with variable_length=True
+Model parameters: 20,226,433
+Best model will be saved to: models/ppi_v4_enhanced_best_20250602-205158.pth
+Checkpoints will be saved to: models/checkpoints_20250602-205158/
+🔥 Testing model with first batch before training...
+🔥 Test batch: 2 samples, emb_a: torch.Size([2, 295, 960]), emb_b: torch.Size([2, 978, 960])
+🔥 Model test SUCCESSFUL! Output: torch.Size([2, 1])
+🔥 ENTERING TRAINING LOOP...
+Mon 02 Jun 2025 08:55:45 PM CST: Memory usage: 41G/377G
+GPU utilization: 29%, Memory:  6336/ 11264 MB
+GPU utilization: 27%, Memory:  6262/ 11264 MB
+Mon 02 Jun 2025 09:00:45 PM CST: Memory usage: 41G/377G
+GPU utilization: 32%, Memory:  6266/ 11264 MB
+GPU utilization: 28%, Memory:  6192/ 11264 MB
+Mon 02 Jun 2025 09:05:45 PM CST: Memory usage: 41G/377G
+GPU utilization: 31%, Memory:  6566/ 11264 MB
+GPU utilization: 27%, Memory:  6470/ 11264 MB
+Mon 02 Jun 2025 09:10:45 PM CST: Memory usage: 41G/377G
+GPU utilization: 30%, Memory:  5482/ 11264 MB
+GPU utilization: 28%, Memory:  5366/ 11264 MB
+Mon 02 Jun 2025 09:15:45 PM CST: Memory usage: 41G/377G
+GPU utilization: 34%, Memory:  6228/ 11264 MB
+GPU utilization: 29%, Memory:  6154/ 11264 MB
+Mon 02 Jun 2025 09:20:45 PM CST: Memory usage: 41G/377G
+GPU utilization: 32%, Memory:  5948/ 11264 MB
+GPU utilization: 31%, Memory:  5854/ 11264 MB
+Mon 02 Jun 2025 09:25:45 PM CST: Memory usage: 41G/377G
+GPU utilization: 29%, Memory:  5126/ 11264 MB
+GPU utilization: 33%, Memory:  5032/ 11264 MB
+Mon 02 Jun 2025 09:30:46 PM CST: Memory usage: 41G/377G
+GPU utilization: 29%, Memory:  5814/ 11264 MB
+GPU utilization: 26%, Memory:  5720/ 11264 MB
+Mon 02 Jun 2025 09:35:46 PM CST: Memory usage: 41G/377G
+GPU utilization: 28%, Memory:  5850/ 11264 MB
+GPU utilization: 27%, Memory:  5736/ 11264 MB
+Mon 02 Jun 2025 09:40:46 PM CST: Memory usage: 41G/377G
+GPU utilization: 31%, Memory:  5914/ 11264 MB
+GPU utilization: 32%, Memory:  5798/ 11264 MB
+Mon 02 Jun 2025 09:45:46 PM CST: Memory usage: 41G/377G
+GPU utilization: 31%, Memory:  5470/ 11264 MB
+GPU utilization: 29%, Memory:  5356/ 11264 MB
+Mon 02 Jun 2025 09:50:46 PM CST: Memory usage: 41G/377G
+GPU utilization: 25%, Memory:  4650/ 11264 MB
+GPU utilization: 25%, Memory:  4556/ 11264 MB
+Mon 02 Jun 2025 09:55:46 PM CST: Memory usage: 41G/377G
+GPU utilization: 29%, Memory:  3968/ 11264 MB
+GPU utilization: 35%, Memory:  6174/ 11264 MB
+Mon 02 Jun 2025 10:00:46 PM CST: Memory usage: 41G/377G
+GPU utilization: 30%, Memory:  6876/ 11264 MB
+GPU utilization: 29%, Memory:  6782/ 11264 MB
+Mon 02 Jun 2025 10:05:46 PM CST: Memory usage: 41G/377G
+GPU utilization: 36%, Memory:  6408/ 11264 MB
+GPU utilization: 31%, Memory:  6314/ 11264 MB
