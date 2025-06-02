@@ -15,6 +15,7 @@ import pickle
 from tqdm import tqdm
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
 import math
+import sys
 
 
 # ✅ ADD GPU MONITORING FUNCTION
@@ -45,8 +46,11 @@ def examine_dataframe(df):
 
 def load_data():
     """Load the actual data from the project structure"""
+    print("🔥 Inside load_data function", flush=True)
+    
     # Get the current script directory
     current_dir = os.path.dirname(os.path.abspath(__file__))
+    print(f"🔥 Current directory: {current_dir}", flush=True)
     
     # Navigate to the project root (CS182-Final-Project)
     # From src/mask_autoencoder/ go up two levels to reach project root
@@ -73,6 +77,8 @@ def load_data():
     test2_path = os.path.join(data_dir, 'test2_data.pkl')
     embeddings_path = os.path.join(embeddings_dir, 'embeddings_standardized.pkl')
     
+    print("🔥 Checking file existence...", flush=True)
+    
     # Check if all files exist
     for path, name in [(train_path, 'train_data.pkl'), 
                        (cv_path, 'validation_data.pkl'),
@@ -84,10 +90,16 @@ def load_data():
         else:
             print(f"✅ Found: {name}")
     
+    print("🔥 Loading pickle files...", flush=True)
+    
     # Load the data
+    print("🔥 Loading train_data.pkl...", flush=True)
     train_data = pickle.load(open(train_path, 'rb'))
+    print("🔥 Loading validation_data.pkl...", flush=True)
     cv_data = pickle.load(open(cv_path, 'rb'))
+    print("🔥 Loading test1_data.pkl...", flush=True)
     test1_data = pickle.load(open(test1_path, 'rb'))
+    print("🔥 Loading test2_data.pkl...", flush=True)
     test2_data = pickle.load(open(test2_path, 'rb'))
 
     # Examine structure of the first dataframe to understand its format
@@ -95,8 +107,9 @@ def load_data():
     examine_dataframe(train_data)
 
     print("\nLoading protein embeddings...")
+    print("🔥 Loading embeddings_standardized.pkl (this might take a while)...", flush=True)
     protein_embeddings = pickle.load(open(embeddings_path, 'rb'))
-    print(f"Loaded {len(protein_embeddings)} protein embeddings")
+    print(f"🔥 Embeddings loaded! Count: {len(protein_embeddings)}", flush=True)
 
     print(train_data.head())
     for i, (key, value) in enumerate(protein_embeddings.items()):
@@ -1270,15 +1283,26 @@ def resume_training_from_checkpoint(checkpoint_path, train_data, val_data, embed
 
 
 if __name__ == '__main__':
+    # ✅ ADD IMMEDIATE DEBUG OUTPUT WITH FORCED FLUSHING
+    print("🔥 SCRIPT STARTED - Python v4.py is running!", flush=True)
+    sys.stdout.flush()
+    
     # Load actual data
-    print("Enhanced Protein-Protein Interaction Prediction v4")
-    print("=" * 60)
-    print("Features: RoPE encoding, 16-layer transformers, cross-attention, enhanced MLP")
-    print("=" * 60)
+    print("Enhanced Protein-Protein Interaction Prediction v4", flush=True)
+    print("=" * 60, flush=True)
+    print("Features: RoPE encoding, 16-layer transformers, cross-attention, enhanced MLP", flush=True)
+    print("=" * 60, flush=True)
+    sys.stdout.flush()
     
     try:
+        print("🔥 ABOUT TO LOAD DATA...", flush=True)
+        sys.stdout.flush()
+        
         # Load data using the new function
         train_data, cv_data, test1_data, test2_data, protein_embeddings = load_data()
+        
+        print("🔥 DATA LOADED SUCCESSFULLY!", flush=True)
+        sys.stdout.flush()
         
         print(f"\nData loaded successfully:")
         print(f"Training data: {len(train_data)} pairs")
@@ -1287,7 +1311,64 @@ if __name__ == '__main__':
         print(f"Test2 data: {len(test2_data)} pairs")
         print(f"Protein embeddings: {len(protein_embeddings)} proteins")
         
-        # Train models with different configurations
+        # ✅ ADD AUTOMATIC CHECKPOINT DETECTION
+        print("🔍 Checking for existing checkpoints to resume...")
+        
+        checkpoint_dirs = []
+        if os.path.exists('models'):
+            for item in os.listdir('models'):
+                if item.startswith('checkpoints_') and os.path.isdir(os.path.join('models', item)):
+                    checkpoint_dirs.append(item)
+        
+        latest_checkpoint = None
+        if checkpoint_dirs:
+            # Sort by timestamp (newest first)
+            checkpoint_dirs.sort(reverse=True)
+            latest_checkpoint_dir = os.path.join('models', checkpoint_dirs[0])
+            
+            # Find the latest checkpoint file in the directory
+            checkpoint_files = []
+            for file in os.listdir(latest_checkpoint_dir):
+                if file.startswith('checkpoint_epoch_') and file.endswith('.pth'):
+                    checkpoint_files.append(file)
+            
+            if checkpoint_files:
+                # Sort by epoch number
+                checkpoint_files.sort(key=lambda x: int(x.split('_')[2].split('.')[0]))
+                latest_checkpoint = os.path.join(latest_checkpoint_dir, checkpoint_files[-1])
+                print(f"📁 Found latest checkpoint: {latest_checkpoint}")
+                
+                # Check if we should resume
+                checkpoint = torch.load(latest_checkpoint, map_location='cpu')
+                completed_epochs = checkpoint['epoch']
+                val_auc = checkpoint.get('val_auc', 0)
+                
+                print(f"Checkpoint info: Epoch {completed_epochs}, Val AUC: {val_auc:.4f}")
+                
+                # Auto-resume if not completed (less than 50 epochs)
+                if completed_epochs < 50:
+                    print(f"🔄 Auto-resuming training from epoch {completed_epochs}...")
+                    remaining_epochs = 50 - completed_epochs
+                    
+                    history, model_path = resume_training_from_checkpoint(
+                        latest_checkpoint, train_data, cv_data, protein_embeddings,
+                        additional_epochs=remaining_epochs,
+                        batch_size=4,
+                        learning_rate=3e-4,
+                        save_every_epochs=10
+                    )
+                    
+                    print(f"✅ Resumed training completed!")
+                    # Skip the normal training loop
+                    exit(0)
+                else:
+                    print(f"✅ Training already completed ({completed_epochs} epochs)")
+            else:
+                print("No checkpoint files found in directory")
+        else:
+            print("No existing checkpoint directories found")
+        
+        # Train models with different configurations (only if not resumed)
         # Compare variable-length vs fixed-length embeddings
         configurations = [
             {'use_variable_length': True, 'name': 'variable_length'},
