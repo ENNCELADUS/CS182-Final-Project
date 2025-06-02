@@ -39,8 +39,8 @@ def get_gpu_memory_info():
 # First, let's examine the data structure to identify column names
 def examine_dataframe(df):
     """Print the structure of the dataframe to identify column names"""
-    print("DataFrame columns:", df.columns.tolist())
-    print("First row sample:", df.iloc[0].to_dict())
+    print("DataFrame columns:", df.columns.tolist(), flush=True)
+    print("First row sample:", df.iloc[0].to_dict(), flush=True)
     return df.columns.tolist()
 
 
@@ -56,15 +56,15 @@ def load_data():
     # From src/mask_autoencoder/ go up two levels to reach project root
     project_root = os.path.dirname(os.path.dirname(current_dir))
     
-    print(f"Script directory: {current_dir}")
-    print(f"Project root: {project_root}")
-    print("Loading data...")
+    print(f"Script directory: {current_dir}", flush=True)
+    print(f"Project root: {project_root}", flush=True)
+    print("Loading data...", flush=True)
     
     # Construct full paths to data files
     data_dir = os.path.join(project_root, 'data', 'full_dataset')
     embeddings_dir = os.path.join(data_dir, 'embeddings')
     
-    print(f"Looking for data in: {data_dir}")
+    print(f"Looking for data in: {data_dir}", flush=True)
     
     # Check if data directory exists
     if not os.path.exists(data_dir):
@@ -86,9 +86,9 @@ def load_data():
                        (test2_path, 'test2_data.pkl'),
                        (embeddings_path, 'embeddings_standardized.pkl')]:
         if not os.path.exists(path):
-            print(f"❌ Missing: {path}")
+            print(f"❌ Missing: {path}", flush=True)
         else:
-            print(f"✅ Found: {name}")
+            print(f"✅ Found: {name}", flush=True)
     
     print("🔥 Loading pickle files...", flush=True)
     
@@ -103,19 +103,19 @@ def load_data():
     test2_data = pickle.load(open(test2_path, 'rb'))
 
     # Examine structure of the first dataframe to understand its format
-    print("\nExamining training data structure:")
+    print("\nExamining training data structure:", flush=True)
     examine_dataframe(train_data)
 
-    print("\nLoading protein embeddings...")
+    print("\nLoading protein embeddings...", flush=True)
     print("🔥 Loading embeddings_standardized.pkl (this might take a while)...", flush=True)
     protein_embeddings = pickle.load(open(embeddings_path, 'rb'))
     print(f"🔥 Embeddings loaded! Count: {len(protein_embeddings)}", flush=True)
 
-    print(train_data.head())
+    print(train_data.head(), flush=True)
     for i, (key, value) in enumerate(protein_embeddings.items()):
         if i >= 5:
             break
-        print(f"Protein ID: {key}, Embedding shape: {value.shape}")
+        print(f"Protein ID: {key}, Embedding shape: {value.shape}", flush=True)
     
     return train_data, cv_data, test1_data, test2_data, protein_embeddings
 
@@ -156,11 +156,11 @@ def detect_column_names(data_df, embeddings_dict):
                     protein_b_col = col
     
     if protein_a_col is None or protein_b_col is None or interaction_col is None:
-        print("Column detection failed. Please specify column names manually.")
-        print("Available columns:", columns)
+        print("Column detection failed. Please specify column names manually.", flush=True)
+        print("Available columns:", columns, flush=True)
         raise ValueError("Could not detect required columns")
     
-    print(f"Using columns: Protein A = '{protein_a_col}', Protein B = '{protein_b_col}', Interaction = '{interaction_col}'")
+    print(f"Using columns: Protein A = '{protein_a_col}', Protein B = '{protein_b_col}', Interaction = '{interaction_col}'", flush=True)
     return protein_a_col, protein_b_col, interaction_col
 
 
@@ -196,7 +196,7 @@ class ProteinPairDataset(Dataset):
                 valid_indices.append(idx)
         
         self.valid_indices = valid_indices
-        print(f"Dataset: {len(valid_indices)} valid pairs out of {len(self.pairs_df)} total pairs")
+        print(f"Dataset: {len(valid_indices)} valid pairs out of {len(self.pairs_df)} total pairs", flush=True)
     
     def __len__(self):
         return len(self.valid_indices)
@@ -688,16 +688,16 @@ def train_model(train_data, val_data, embeddings_dict,
     num_val_batches = len(val_loader)
     total_train_steps = num_train_batches * epochs
     
-    print(f"📊 TRAINING STATISTICS:")
-    print(f"Training samples: {len(train_dataset):,}")
-    print(f"Validation samples: {len(val_dataset):,}")
-    print(f"Batch size: {batch_size}")
-    print(f"Training batches per epoch: {num_train_batches}")
-    print(f"Validation batches per epoch: {num_val_batches}")
-    print(f"Total epochs: {epochs}")
-    print(f"Total training steps: {total_train_steps:,}")
-    print(f"Progress reports every 50 batches")
-    print(f"Checkpoints saved every {save_every_epochs} epochs")
+    print(f"📊 TRAINING STATISTICS:", flush=True)
+    print(f"Training samples: {len(train_dataset):,}", flush=True)
+    print(f"Validation samples: {len(val_dataset):,}", flush=True)
+    print(f"Batch size: {batch_size}", flush=True)
+    print(f"Training batches per epoch: {num_train_batches}", flush=True)
+    print(f"Validation batches per epoch: {num_val_batches}", flush=True)
+    print(f"Total epochs: {epochs}", flush=True)
+    print(f"Total training steps: {total_train_steps:,}", flush=True)
+    print(f"Progress reports every 50 batches", flush=True)
+    print(f"Checkpoints saved every {save_every_epochs} epochs", flush=True)
     
     # ✅ ENHANCED GPU DETECTION AND ERROR HANDLING
     if torch.cuda.is_available():
@@ -705,8 +705,8 @@ def train_model(train_data, val_data, embeddings_dict,
         
         # Check GPU health
         gpu_count = torch.cuda.device_count()
-        print(f"\n🔍 GPU HEALTH CHECK:")
-        print(f"Available GPUs: {gpu_count}")
+        print(f"\n🔍 GPU HEALTH CHECK:", flush=True)
+        print(f"Available GPUs: {gpu_count}", flush=True)
         
         working_gpus = []
         for i in range(gpu_count):
@@ -715,28 +715,28 @@ def train_model(train_data, val_data, embeddings_dict,
                 test_tensor = torch.randn(10, 10).cuda(i)
                 gpu_name = torch.cuda.get_device_name(i)
                 memory_total = torch.cuda.get_device_properties(i).total_memory / 1024**3
-                print(f"  GPU {i}: {gpu_name} ({memory_total:.1f}GB) - ✅ Working")
+                print(f"  GPU {i}: {gpu_name} ({memory_total:.1f}GB) - ✅ Working", flush=True)
                 working_gpus.append(i)
                 del test_tensor
             except Exception as e:
-                print(f"  GPU {i}: ❌ Error - {str(e)}")
+                print(f"  GPU {i}: ❌ Error - {str(e)}", flush=True)
         
-        print(f"Working GPUs: {working_gpus}")
+        print(f"Working GPUs: {working_gpus}", flush=True)
         
         if len(working_gpus) == 0:
-            print("⚠️ No working GPUs found, falling back to CPU")
+            print("⚠️ No working GPUs found, falling back to CPU", flush=True)
             device = 'cpu'
         elif len(working_gpus) == 1:
             device = f'cuda:{working_gpus[0]}'
-            print(f"Using single GPU: {device}")
+            print(f"Using single GPU: {device}", flush=True)
         else:
             device = 'cuda'
-            print(f"Will use DataParallel with {len(working_gpus)} GPUs")
+            print(f"Will use DataParallel with {len(working_gpus)} GPUs", flush=True)
         
         if device != 'cpu':
-            print(f"GPU Memory before training: {torch.cuda.memory_allocated()/1024**3:.2f} GB")
+            print(f"GPU Memory before training: {torch.cuda.memory_allocated()/1024**3:.2f} GB", flush=True)
     else:
-        print("❌ CUDA not available, using CPU")
+        print("❌ CUDA not available, using CPU", flush=True)
         device = 'cpu'
 
     # Create enhanced model
@@ -751,24 +751,24 @@ def train_model(train_data, val_data, embeddings_dict,
     # ✅ IMPROVED MULTI-GPU SETUP
     original_batch_size = batch_size
     if device != 'cpu' and len(working_gpus) > 1:
-        print(f"🔄 Setting up DataParallel with GPUs: {working_gpus}")
+        print(f"🔄 Setting up DataParallel with GPUs: {working_gpus}", flush=True)
         
         # Only use working GPUs
         if len(working_gpus) < torch.cuda.device_count():
             # Set visible devices to only working ones
             os.environ['CUDA_VISIBLE_DEVICES'] = ','.join(map(str, working_gpus))
-            print(f"Set CUDA_VISIBLE_DEVICES to: {os.environ['CUDA_VISIBLE_DEVICES']}")
+            print(f"Set CUDA_VISIBLE_DEVICES to: {os.environ['CUDA_VISIBLE_DEVICES']}", flush=True)
         
         model = nn.DataParallel(model, device_ids=working_gpus)
         
         # Adjust batch size for multiple GPUs
         batch_size_per_gpu = max(1, batch_size // len(working_gpus))
         effective_batch_size = batch_size_per_gpu * len(working_gpus)
-        print(f"Batch size per GPU: {batch_size_per_gpu}")
-        print(f"Effective total batch size: {effective_batch_size}")
+        print(f"Batch size per GPU: {batch_size_per_gpu}", flush=True)
+        print(f"Effective total batch size: {effective_batch_size}", flush=True)
         
         if effective_batch_size != original_batch_size:
-            print(f"⚠️ Batch size adjusted from {original_batch_size} to {effective_batch_size}")
+            print(f"⚠️ Batch size adjusted from {original_batch_size} to {effective_batch_size}", flush=True)
     
     # Optimizer with weight decay
     optimizer = torch.optim.AdamW(
@@ -799,10 +799,10 @@ def train_model(train_data, val_data, embeddings_dict,
     checkpoint_dir = f'models/checkpoints_{ts}'
     os.makedirs(checkpoint_dir, exist_ok=True)
     
-    print(f"Training enhanced model with variable_length={use_variable_length}")
-    print(f"Model parameters: {sum(p.numel() for p in model.parameters()):,}")
-    print(f"Best model will be saved to: {best_path}")
-    print(f"Checkpoints will be saved to: {checkpoint_dir}/")
+    print(f"Training enhanced model with variable_length={use_variable_length}", flush=True)
+    print(f"Model parameters: {sum(p.numel() for p in model.parameters()):,}", flush=True)
+    print(f"Best model will be saved to: {best_path}", flush=True)
+    print(f"Checkpoints will be saved to: {checkpoint_dir}/", flush=True)
     
     for epoch in range(1, epochs + 1):
         # Training phase
@@ -846,7 +846,7 @@ def train_model(train_data, val_data, embeddings_dict,
                 progress = (epoch - 1) * num_train_batches + batch_idx
                 gpu_memory_info = get_gpu_memory_info()  # ✅ USE NEW MONITORING FUNCTION
                 print(f'Epoch {epoch}/{epochs} Batch {batch_idx}/{num_train_batches} '
-                      f'({progress}/{total_train_steps} total) Loss: {train_losses[-1]:.4f}, {gpu_memory_info}')
+                      f'({progress}/{total_train_steps} total) Loss: {train_losses[-1]:.4f}, {gpu_memory_info}', flush=True)
                 
                 # Clear cache every 50 batches
                 if torch.cuda.is_available():
@@ -917,7 +917,7 @@ def train_model(train_data, val_data, embeddings_dict,
                 },
                 'history': history
             }, best_path)
-            print(f'>>> Saved BEST model: Epoch {epoch}, Val AUC: {val_auc:.4f}, Val Acc: {val_acc:.4f}, Val F1: {val_f1:.4f}')
+            print(f'>>> Saved BEST model: Epoch {epoch}, Val AUC: {val_auc:.4f}, Val Acc: {val_acc:.4f}, Val F1: {val_f1:.4f}', flush=True)
         
         # Save regular checkpoints
         if epoch % save_every_epochs == 0 or epoch == epochs:
@@ -941,7 +941,7 @@ def train_model(train_data, val_data, embeddings_dict,
                 },
                 'history': history
             }, checkpoint_path)
-            print(f'>>> Saved checkpoint: {checkpoint_path}')
+            print(f'>>> Saved checkpoint: {checkpoint_path}', flush=True)
         
         # Log progress
         epoch_log = {
@@ -962,17 +962,17 @@ def train_model(train_data, val_data, embeddings_dict,
             f.write(json.dumps(epoch_log) + '\n')
         
         print(f'Epoch {epoch:3d}: Train Loss={train_loss:.4f}, Val Loss={val_loss:.4f}, '
-              f'Train Acc={train_acc:.4f}, Val Acc={val_acc:.4f}, Train AUC={train_auc:.4f}, Val AUC={val_auc:.4f}, Val F1={val_f1:.4f}')
+              f'Train Acc={train_acc:.4f}, Val Acc={val_acc:.4f}, Train AUC={train_auc:.4f}, Val AUC={val_auc:.4f}, Val F1={val_f1:.4f}', flush=True)
         
         # Memory cleanup
         gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
     
-    print(f'\n✅ Training completed! Best validation AUC: {best_val_auc:.4f}')
-    print(f'📁 Best model saved to: {best_path}')
-    print(f'📁 Checkpoints saved to: {checkpoint_dir}/')
-    print(f'📊 Total training steps completed: {total_train_steps:,}')
+    print(f'\n✅ Training completed! Best validation AUC: {best_val_auc:.4f}', flush=True)
+    print(f'📁 Best model saved to: {best_path}', flush=True)
+    print(f'📁 Checkpoints saved to: {checkpoint_dir}/', flush=True)
+    print(f'📊 Total training steps completed: {total_train_steps:,}', flush=True)
     
     return history, best_path
 
@@ -1032,12 +1032,12 @@ def evaluate_model(model_path, test_data, embeddings_dict, device='cuda' if torc
     f1 = f1_score(all_labels, all_preds)
     auc = roc_auc_score(all_labels, all_probs)
     
-    print(f"\nTest Results:")
-    print(f"Accuracy:  {accuracy:.4f}")
-    print(f"Precision: {precision:.4f}")
-    print(f"Recall:    {recall:.4f}")
-    print(f"F1 Score:  {f1:.4f}")
-    print(f"ROC AUC:   {auc:.4f}")
+    print(f"\nTest Results:", flush=True)
+    print(f"Accuracy:  {accuracy:.4f}", flush=True)
+    print(f"Precision: {precision:.4f}", flush=True)
+    print(f"Recall:    {recall:.4f}", flush=True)
+    print(f"F1 Score:  {f1:.4f}", flush=True)
+    print(f"ROC AUC:   {auc:.4f}", flush=True)
     
     return {
         'accuracy': accuracy,
@@ -1064,17 +1064,17 @@ def resume_training_from_checkpoint(checkpoint_path, train_data, val_data, embed
         additional_epochs: Number of additional epochs to train
         Other parameters: Same as train_model
     """
-    print(f"🔄 RESUMING TRAINING FROM CHECKPOINT")
-    print(f"Checkpoint: {checkpoint_path}")
+    print(f"🔄 RESUMING TRAINING FROM CHECKPOINT", flush=True)
+    print(f"Checkpoint: {checkpoint_path}", flush=True)
     
     # Load checkpoint
     checkpoint = torch.load(checkpoint_path, map_location=device)
     config = checkpoint['config']
     start_epoch = checkpoint['epoch'] + 1
     
-    print(f"Previous training stopped at epoch {checkpoint['epoch']}")
-    print(f"Resuming from epoch {start_epoch}")
-    print(f"Will train for {additional_epochs} more epochs (until epoch {start_epoch + additional_epochs - 1})")
+    print(f"Previous training stopped at epoch {checkpoint['epoch']}", flush=True)
+    print(f"Resuming from epoch {start_epoch}", flush=True)
+    print(f"Will train for {additional_epochs} more epochs (until epoch {start_epoch + additional_epochs - 1})", flush=True)
     
     # Create datasets and loaders
     train_dataset = ProteinPairDataset(train_data, embeddings_dict)
@@ -1133,8 +1133,8 @@ def resume_training_from_checkpoint(checkpoint_path, train_data, val_data, embed
     os.makedirs('models', exist_ok=True)
     os.makedirs(checkpoint_dir, exist_ok=True)
     
-    print(f"Previous best validation AUC: {best_val_auc:.4f}")
-    print(f"New checkpoints will be saved to: {checkpoint_dir}/")
+    print(f"Previous best validation AUC: {best_val_auc:.4f}", flush=True)
+    print(f"New checkpoints will be saved to: {checkpoint_dir}/", flush=True)
     
     # Continue training (same logic as train_model but starting from start_epoch)
     criterion = nn.BCEWithLogitsLoss()
@@ -1171,7 +1171,7 @@ def resume_training_from_checkpoint(checkpoint_path, train_data, val_data, embed
                 train_labels.extend(interactions.cpu().numpy())
             
             if batch_idx % 50 == 0:
-                print(f'Resumed Epoch {epoch} Batch {batch_idx} Loss: {loss.item():.4f}')
+                print(f'Resumed Epoch {epoch} Batch {batch_idx} Loss: {loss.item():.4f}', flush=True)
         
         # Validation phase (same as train_model)
         model.eval()
@@ -1228,7 +1228,7 @@ def resume_training_from_checkpoint(checkpoint_path, train_data, val_data, embed
                 'history': history,
                 'resumed_from': checkpoint_path
             }, best_path)
-            print(f'>>> Saved BEST resumed model: Epoch {epoch}, Val AUC: {val_auc:.4f}')
+            print(f'>>> Saved BEST resumed model: Epoch {epoch}, Val AUC: {val_auc:.4f}', flush=True)
         
         # Save checkpoints
         if (epoch - start_epoch + 1) % save_every_epochs == 0 or epoch == start_epoch + additional_epochs - 1:
@@ -1248,7 +1248,7 @@ def resume_training_from_checkpoint(checkpoint_path, train_data, val_data, embed
                 'history': history,
                 'resumed_from': checkpoint_path
             }, checkpoint_path_new)
-            print(f'>>> Saved resumed checkpoint: {checkpoint_path_new}')
+            print(f'>>> Saved resumed checkpoint: {checkpoint_path_new}', flush=True)
         
         # Log progress
         epoch_log = {
@@ -1270,14 +1270,14 @@ def resume_training_from_checkpoint(checkpoint_path, train_data, val_data, embed
             f.write(json.dumps(epoch_log) + '\n')
         
         print(f'Resumed Epoch {epoch:3d}: Train Loss={train_loss:.4f}, Val Loss={val_loss:.4f}, '
-              f'Train AUC={train_auc:.4f}, Val AUC={val_auc:.4f}, Val F1={val_f1:.4f}')
+              f'Train AUC={train_auc:.4f}, Val AUC={val_auc:.4f}, Val F1={val_f1:.4f}', flush=True)
         
         gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
     
-    print(f'\n✅ Resumed training completed! Best validation AUC: {best_val_auc:.4f}')
-    print(f'📁 Best resumed model saved to: {best_path}')
+    print(f'\n✅ Resumed training completed! Best validation AUC: {best_val_auc:.4f}', flush=True)
+    print(f'📁 Best resumed model saved to: {best_path}', flush=True)
     
     return history, best_path
 
@@ -1304,15 +1304,15 @@ if __name__ == '__main__':
         print("🔥 DATA LOADED SUCCESSFULLY!", flush=True)
         sys.stdout.flush()
         
-        print(f"\nData loaded successfully:")
-        print(f"Training data: {len(train_data)} pairs")
-        print(f"Validation data: {len(cv_data)} pairs") 
-        print(f"Test1 data: {len(test1_data)} pairs")
-        print(f"Test2 data: {len(test2_data)} pairs")
-        print(f"Protein embeddings: {len(protein_embeddings)} proteins")
+        print(f"\nData loaded successfully:", flush=True)
+        print(f"Training data: {len(train_data)} pairs", flush=True)
+        print(f"Validation data: {len(cv_data)} pairs", flush=True) 
+        print(f"Test1 data: {len(test1_data)} pairs", flush=True)
+        print(f"Test2 data: {len(test2_data)} pairs", flush=True)
+        print(f"Protein embeddings: {len(protein_embeddings)} proteins", flush=True)
         
         # ✅ ADD AUTOMATIC CHECKPOINT DETECTION
-        print("🔍 Checking for existing checkpoints to resume...")
+        print("🔍 Checking for existing checkpoints to resume...", flush=True)
         
         checkpoint_dirs = []
         if os.path.exists('models'):
@@ -1336,18 +1336,18 @@ if __name__ == '__main__':
                 # Sort by epoch number
                 checkpoint_files.sort(key=lambda x: int(x.split('_')[2].split('.')[0]))
                 latest_checkpoint = os.path.join(latest_checkpoint_dir, checkpoint_files[-1])
-                print(f"📁 Found latest checkpoint: {latest_checkpoint}")
+                print(f"📁 Found latest checkpoint: {latest_checkpoint}", flush=True)
                 
                 # Check if we should resume
                 checkpoint = torch.load(latest_checkpoint, map_location='cpu')
                 completed_epochs = checkpoint['epoch']
                 val_auc = checkpoint.get('val_auc', 0)
                 
-                print(f"Checkpoint info: Epoch {completed_epochs}, Val AUC: {val_auc:.4f}")
+                print(f"Checkpoint info: Epoch {completed_epochs}, Val AUC: {val_auc:.4f}", flush=True)
                 
                 # Auto-resume if not completed (less than 50 epochs)
                 if completed_epochs < 50:
-                    print(f"🔄 Auto-resuming training from epoch {completed_epochs}...")
+                    print(f"🔄 Auto-resuming training from epoch {completed_epochs}...", flush=True)
                     remaining_epochs = 50 - completed_epochs
                     
                     history, model_path = resume_training_from_checkpoint(
@@ -1355,18 +1355,18 @@ if __name__ == '__main__':
                         additional_epochs=remaining_epochs,
                         batch_size=4,
                         learning_rate=3e-4,
-                        save_every_epochs=10
+                        save_every_epochs=1
                     )
                     
-                    print(f"✅ Resumed training completed!")
+                    print(f"✅ Resumed training completed!", flush=True)
                     # Skip the normal training loop
                     exit(0)
                 else:
-                    print(f"✅ Training already completed ({completed_epochs} epochs)")
+                    print(f"✅ Training already completed ({completed_epochs} epochs)", flush=True)
             else:
-                print("No checkpoint files found in directory")
+                print("No checkpoint files found in directory", flush=True)
         else:
-            print("No existing checkpoint directories found")
+            print("No existing checkpoint directories found", flush=True)
         
         # Train models with different configurations (only if not resumed)
         # Compare variable-length vs fixed-length embeddings
@@ -1379,9 +1379,9 @@ if __name__ == '__main__':
         
         for config in configurations:
             config_name = config['name']
-            print(f"\n" + "="*60)
-            print(f"Training enhanced model with {config_name} embeddings...")
-            print("="*60)
+            print(f"\n" + "="*60, flush=True)
+            print(f"Training enhanced model with {config_name} embeddings...", flush=True)
+            print("="*60, flush=True)
             
             try:
                 history, model_path = train_model(
@@ -1404,10 +1404,10 @@ if __name__ == '__main__':
                     'config': config
                 }
                 
-                print(f"Completed training {config_name}: Best Val AUC = {best_auc:.4f}")
+                print(f"Completed training {config_name}: Best Val AUC = {best_auc:.4f}", flush=True)
                 
             except Exception as e:
-                print(f"Error training {config_name}: {str(e)}")
+                print(f"Error training {config_name}: {str(e)}", flush=True)
                 continue
         
         # Find the best model overall (highest validation AUC)
@@ -1415,43 +1415,43 @@ if __name__ == '__main__':
             best_config = max(best_models.keys(), key=lambda x: best_models[x]['val_auc'])
             best_model_info = best_models[best_config]
             
-            print(f"\n" + "="*60)
-            print(f"ENHANCED MODEL SUMMARY")
-            print("="*60)
-            print(f"Architecture Features:")
-            print(f"  - RoPE positional encoding")
-            print(f"  - 16-layer enhanced transformers")
-            print(f"  - Cross-attention interaction")
-            print(f"  - Enhanced MLP decoder [512→256→128→1]")
-            print(f"  - Residual connections throughout")
-            print(f"Best configuration: {best_config}")
-            print(f"Best validation AUC: {best_model_info['val_auc']:.4f}")
-            print(f"Model path: {best_model_info['model_path']}")
+            print(f"\n" + "="*60, flush=True)
+            print(f"ENHANCED MODEL SUMMARY", flush=True)
+            print("="*60, flush=True)
+            print(f"Architecture Features:", flush=True)
+            print(f"  - RoPE positional encoding", flush=True)
+            print(f"  - 16-layer enhanced transformers", flush=True)
+            print(f"  - Cross-attention interaction", flush=True)
+            print(f"  - Enhanced MLP decoder [512→256→128→1]", flush=True)
+            print(f"  - Residual connections throughout", flush=True)
+            print(f"Best configuration: {best_config}", flush=True)
+            print(f"Best validation AUC: {best_model_info['val_auc']:.4f}", flush=True)
+            print(f"Model path: {best_model_info['model_path']}", flush=True)
             
             # Evaluate the best model on both test sets
-            print(f"\nEvaluating best enhanced model on test sets...")
+            print(f"\nEvaluating best enhanced model on test sets...", flush=True)
             
             # Test1 evaluation
             try:
-                print(f"\nTest1 Results (Enhanced {best_config}):")
+                print(f"\nTest1 Results (Enhanced {best_config}):", flush=True)
                 results_test1 = evaluate_model(
                     best_model_info['model_path'], 
                     test1_data, 
                     protein_embeddings
                 )
             except Exception as e:
-                print(f"Error evaluating on test1: {str(e)}")
+                print(f"Error evaluating on test1: {str(e)}", flush=True)
             
             # Test2 evaluation  
             try:
-                print(f"\nTest2 Results (Enhanced {best_config}):")
+                print(f"\nTest2 Results (Enhanced {best_config}):", flush=True)
                 results_test2 = evaluate_model(
                     best_model_info['model_path'], 
                     test2_data, 
                     protein_embeddings
                 )
             except Exception as e:
-                print(f"Error evaluating on test2: {str(e)}")
+                print(f"Error evaluating on test2: {str(e)}", flush=True)
                 
             # Save enhanced summary results
             summary = {
@@ -1475,26 +1475,26 @@ if __name__ == '__main__':
             with open(f'logs/enhanced_model_summary_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json', 'w') as f:
                 json.dump(summary, f, indent=2)
                 
-            print(f"\nEnhanced model summary saved to logs/enhanced_model_summary_*.json")
+            print(f"\nEnhanced model summary saved to logs/enhanced_model_summary_*.json", flush=True)
             
             # Print comparison of all configurations
-            print(f"\n" + "="*60)
-            print("CONFIGURATION COMPARISON")
-            print("="*60)
+            print(f"\n" + "="*60, flush=True)
+            print("CONFIGURATION COMPARISON", flush=True)
+            print("="*60, flush=True)
             for config_name, model_info in best_models.items():
-                print(f"{config_name:15}: Val AUC = {model_info['val_auc']:.4f}")
+                print(f"{config_name:15}: Val AUC = {model_info['val_auc']:.4f}", flush=True)
                 
         else:
-            print("No models were successfully trained!")
+            print("No models were successfully trained!", flush=True)
             
     except Exception as e:
-        print(f"Error in main execution: {str(e)}")
+        print(f"Error in main execution: {str(e)}", flush=True)
         import traceback
         traceback.print_exc()
         # Fallback to example usage message
-        print("\nPlease ensure your data files are in the correct location:")
-        print("- data/full_dataset/train_data.pkl")
-        print("- data/full_dataset/validation_data.pkl") 
-        print("- data/full_dataset/test1_data.pkl")
-        print("- data/full_dataset/test2_data.pkl")
-        print("- data/full_dataset/embeddings/embeddings_standardized.pkl") 
+        print("\nPlease ensure your data files are in the correct location:", flush=True)
+        print("- data/full_dataset/train_data.pkl", flush=True)
+        print("- data/full_dataset/validation_data.pkl", flush=True) 
+        print("- data/full_dataset/test1_data.pkl", flush=True)
+        print("- data/full_dataset/test2_data.pkl", flush=True)
+        print("- data/full_dataset/embeddings/embeddings_standardized.pkl", flush=True) 
