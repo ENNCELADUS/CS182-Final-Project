@@ -656,7 +656,7 @@ class ProteinInteractionClassifier(nn.Module):
 def train_model(train_data, val_data, embeddings_dict, 
                 epochs=30, batch_size=4, learning_rate=3e-4,  # ✅ INCREASED FROM 1e-4 to 3e-4
                 use_variable_length=True,
-                save_every_epochs=10,  # Save checkpoint every N epochs
+                save_every_epochs=1,  # Save checkpoint every N epochs
                 device='cuda' if torch.cuda.is_available() else 'cpu'):
     """
     Train the enhanced protein interaction prediction model
@@ -1053,7 +1053,7 @@ def evaluate_model(model_path, test_data, embeddings_dict, device='cuda' if torc
 
 def resume_training_from_checkpoint(checkpoint_path, train_data, val_data, embeddings_dict,
                                    additional_epochs=20, batch_size=16, learning_rate=3e-4,  # ✅ INCREASED FROM 1e-4 to 3e-4
-                                   save_every_epochs=10,
+                                   save_every_epochs=1,
                                    device='cuda' if torch.cuda.is_available() else 'cpu'):
     """
     Resume training from a saved checkpoint
@@ -1301,9 +1301,6 @@ if __name__ == '__main__':
         # Load data using the new function
         train_data, cv_data, test1_data, test2_data, protein_embeddings = load_data()
         
-        print("🔥 DATA LOADED SUCCESSFULLY!", flush=True)
-        sys.stdout.flush()
-        
         print(f"\nData loaded successfully:")
         print(f"Training data: {len(train_data)} pairs")
         print(f"Validation data: {len(cv_data)} pairs") 
@@ -1355,7 +1352,7 @@ if __name__ == '__main__':
                         additional_epochs=remaining_epochs,
                         batch_size=4,
                         learning_rate=3e-4,
-                        save_every_epochs=10
+                        save_every_epochs=1
                     )
                     
                     print(f"✅ Resumed training completed!")
@@ -1390,7 +1387,7 @@ if __name__ == '__main__':
                     epochs=50,
                     batch_size=4,
                     learning_rate=3e-4,  # ✅ INCREASED FROM 1e-4 to 3e-4
-                    save_every_epochs=10  # Save checkpoints every 10 epochs
+                    save_every_epochs=1  # Save checkpoints every 1 epochs
                 )
                 
                 # Load the best model and get its validation AUC
