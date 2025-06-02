@@ -1,13 +1,13 @@
 #!/bin/bash
 #SBATCH -J 2080GPUESM-3/2080.slurm
 #SBATCH -p CS182
-#SBATCH --cpus-per-task=6
 #SBATCH -N 1
 #SBATCH -t 2-00:00:00
+#SBATCH --mem=64G          # Request 64GB RAM
+#SBATCH --cpus-per-task=8  # Request 8 CPUs
 #SBATCH --output=%j.out
 #SBATCH --error=%j.err
 #SBATCH --mail-type=ALL
-#SBATCH --mem-per-cpu=10240
 #SBATCH --gres=gpu:NVIDIAGeForceRTX2080Ti:2
 #SBATCH --mail-user=2162352828@qq.com
 # sleep 9999999
