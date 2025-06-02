@@ -17,6 +17,24 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 import math
 
 
+# ✅ ADD GPU MONITORING FUNCTION
+def get_gpu_memory_info():
+    """Get GPU memory usage for all available GPUs"""
+    if not torch.cuda.is_available():
+        return "No CUDA available"
+    
+    gpu_info = []
+    for i in range(torch.cuda.device_count()):
+        try:
+            memory_allocated = torch.cuda.memory_allocated(i) / 1024**3
+            memory_reserved = torch.cuda.memory_reserved(i) / 1024**3
+            gpu_info.append(f"GPU{i}: {memory_allocated:.2f}GB/{memory_reserved:.2f}GB")
+        except:
+            gpu_info.append(f"GPU{i}: Error")
+    
+    return ", ".join(gpu_info)
+
+
 # First, let's examine the data structure to identify column names
 def examine_dataframe(df):
     """Print the structure of the dataframe to identify column names"""
@@ -623,7 +641,7 @@ class ProteinInteractionClassifier(nn.Module):
 
 
 def train_model(train_data, val_data, embeddings_dict, 
-                epochs=30, batch_size=4, learning_rate=1e-4, 
+                epochs=30, batch_size=4, learning_rate=3e-4,  # ✅ INCREASED FROM 1e-4 to 3e-4
                 use_variable_length=True,
                 save_every_epochs=10,  # Save checkpoint every N epochs
                 device='cuda' if torch.cuda.is_available() else 'cpu'):
@@ -633,15 +651,15 @@ def train_model(train_data, val_data, embeddings_dict,
     # Create datasets
     train_dataset = ProteinPairDataset(train_data, embeddings_dict)
     val_dataset = ProteinPairDataset(val_data, embeddings_dict)
-    
+
     # Create data loaders
     train_loader = DataLoader(
         train_dataset, 
         batch_size=batch_size, 
         shuffle=True, 
         collate_fn=collate_fn,
-        num_workers=2,        # ❌ CHANGE TO 0
-        pin_memory=True       # ❌ CHANGE TO False
+        num_workers=0,        # ✅ CHANGED TO 0
+        pin_memory=False      # ✅ CHANGED TO False
     )
     val_loader = DataLoader(
         val_dataset, 
@@ -668,10 +686,45 @@ def train_model(train_data, val_data, embeddings_dict,
     print(f"Progress reports every 50 batches")
     print(f"Checkpoints saved every {save_every_epochs} epochs")
     
-    # Clear GPU memory at start
+    # ✅ ENHANCED GPU DETECTION AND ERROR HANDLING
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
-        print(f"GPU Memory before training: {torch.cuda.memory_allocated()/1024**3:.2f} GB")
+        
+        # Check GPU health
+        gpu_count = torch.cuda.device_count()
+        print(f"\n🔍 GPU HEALTH CHECK:")
+        print(f"Available GPUs: {gpu_count}")
+        
+        working_gpus = []
+        for i in range(gpu_count):
+            try:
+                # Test GPU by allocating small tensor
+                test_tensor = torch.randn(10, 10).cuda(i)
+                gpu_name = torch.cuda.get_device_name(i)
+                memory_total = torch.cuda.get_device_properties(i).total_memory / 1024**3
+                print(f"  GPU {i}: {gpu_name} ({memory_total:.1f}GB) - ✅ Working")
+                working_gpus.append(i)
+                del test_tensor
+            except Exception as e:
+                print(f"  GPU {i}: ❌ Error - {str(e)}")
+        
+        print(f"Working GPUs: {working_gpus}")
+        
+        if len(working_gpus) == 0:
+            print("⚠️ No working GPUs found, falling back to CPU")
+            device = 'cpu'
+        elif len(working_gpus) == 1:
+            device = f'cuda:{working_gpus[0]}'
+            print(f"Using single GPU: {device}")
+        else:
+            device = 'cuda'
+            print(f"Will use DataParallel with {len(working_gpus)} GPUs")
+        
+        if device != 'cpu':
+            print(f"GPU Memory before training: {torch.cuda.memory_allocated()/1024**3:.2f} GB")
+    else:
+        print("❌ CUDA not available, using CPU")
+        device = 'cpu'
 
     # Create enhanced model
     model = ProteinInteractionClassifier(
@@ -682,13 +735,27 @@ def train_model(train_data, val_data, embeddings_dict,
         decoder_hidden_dims=[256, 128, 64]   # ✅ USE smaller decoder
     ).to(device)
 
-    # Use multiple GPUs if available
-    if torch.cuda.device_count() > 1:
-        print(f"Using {torch.cuda.device_count()} GPUs")
-        model = nn.DataParallel(model)
-        # Increase batch size for multiple GPUs
-        if torch.cuda.device_count() >= 2:
-            batch_size = 8  # 4 per GPU
+    # ✅ IMPROVED MULTI-GPU SETUP
+    original_batch_size = batch_size
+    if device != 'cpu' and len(working_gpus) > 1:
+        print(f"🔄 Setting up DataParallel with GPUs: {working_gpus}")
+        
+        # Only use working GPUs
+        if len(working_gpus) < torch.cuda.device_count():
+            # Set visible devices to only working ones
+            os.environ['CUDA_VISIBLE_DEVICES'] = ','.join(map(str, working_gpus))
+            print(f"Set CUDA_VISIBLE_DEVICES to: {os.environ['CUDA_VISIBLE_DEVICES']}")
+        
+        model = nn.DataParallel(model, device_ids=working_gpus)
+        
+        # Adjust batch size for multiple GPUs
+        batch_size_per_gpu = max(1, batch_size // len(working_gpus))
+        effective_batch_size = batch_size_per_gpu * len(working_gpus)
+        print(f"Batch size per GPU: {batch_size_per_gpu}")
+        print(f"Effective total batch size: {effective_batch_size}")
+        
+        if effective_batch_size != original_batch_size:
+            print(f"⚠️ Batch size adjusted from {original_batch_size} to {effective_batch_size}")
     
     # Optimizer with weight decay
     optimizer = torch.optim.AdamW(
@@ -741,7 +808,7 @@ def train_model(train_data, val_data, embeddings_dict,
             interactions = interactions.to(device).float()
             
             # Forward pass
-            logits = model(emb_a, emb_b, lengths_a, lengths_b).squeeze()
+            logits = model(emb_a, emb_b, lengths_a, lengths_b).squeeze(-1)  # ✅ CHANGED FROM .squeeze() to .squeeze(-1)
             loss = criterion(logits, interactions)
             
             # Backward pass
@@ -764,9 +831,9 @@ def train_model(train_data, val_data, embeddings_dict,
 
             if batch_idx % 50 == 0:
                 progress = (epoch - 1) * num_train_batches + batch_idx
-                mem_info = f", GPU: {torch.cuda.memory_allocated()/1024**3:.2f}GB" if torch.cuda.is_available() else ""
+                gpu_memory_info = get_gpu_memory_info()  # ✅ USE NEW MONITORING FUNCTION
                 print(f'Epoch {epoch}/{epochs} Batch {batch_idx}/{num_train_batches} '
-                      f'({progress}/{total_train_steps} total) Loss: {train_losses[-1]:.4f}{mem_info}')
+                      f'({progress}/{total_train_steps} total) Loss: {train_losses[-1]:.4f}, {gpu_memory_info}')
                 
                 # Clear cache every 50 batches
                 if torch.cuda.is_available():
@@ -789,7 +856,7 @@ def train_model(train_data, val_data, embeddings_dict,
                 interactions = interactions.to(device).float()
                 
                 # Forward pass
-                logits = model(emb_a, emb_b, lengths_a, lengths_b).squeeze()
+                logits = model(emb_a, emb_b, lengths_a, lengths_b).squeeze(-1)  # ✅ CHANGED FROM .squeeze() to .squeeze(-1)
                 loss = criterion(logits, interactions)
                 
                 # Track metrics
@@ -920,7 +987,7 @@ def evaluate_model(model_path, test_data, embeddings_dict, device='cuda' if torc
         batch_size=32, 
         shuffle=False, 
         collate_fn=collate_fn,
-        num_workers=2
+        num_workers=0  # ✅ CHANGED FROM 2 to 0
     )
     
     # Evaluation
@@ -937,7 +1004,7 @@ def evaluate_model(model_path, test_data, embeddings_dict, device='cuda' if torc
             lengths_b = lengths_b.to(device)
             
             # Forward pass
-            logits = model(emb_a, emb_b, lengths_a, lengths_b).squeeze()
+            logits = model(emb_a, emb_b, lengths_a, lengths_b).squeeze(-1)  # ✅ CHANGED FROM .squeeze() to .squeeze(-1)
             probs = torch.sigmoid(logits)
             preds = (probs > 0.5).float()
             
@@ -972,7 +1039,7 @@ def evaluate_model(model_path, test_data, embeddings_dict, device='cuda' if torc
 
 
 def resume_training_from_checkpoint(checkpoint_path, train_data, val_data, embeddings_dict,
-                                   additional_epochs=20, batch_size=16, learning_rate=1e-4,
+                                   additional_epochs=20, batch_size=16, learning_rate=3e-4,  # ✅ INCREASED FROM 1e-4 to 3e-4
                                    save_every_epochs=10,
                                    device='cuda' if torch.cuda.is_available() else 'cpu'):
     """
@@ -1074,7 +1141,7 @@ def resume_training_from_checkpoint(checkpoint_path, train_data, val_data, embed
             lengths_b = lengths_b.to(device)
             interactions = interactions.to(device).float()
             
-            logits = model(emb_a, emb_b, lengths_a, lengths_b).squeeze()
+            logits = model(emb_a, emb_b, lengths_a, lengths_b).squeeze(-1)  # ✅ CHANGED FROM .squeeze() to .squeeze(-1)
             loss = criterion(logits, interactions)
             
             optimizer.zero_grad()
@@ -1108,7 +1175,7 @@ def resume_training_from_checkpoint(checkpoint_path, train_data, val_data, embed
                 lengths_b = lengths_b.to(device)
                 interactions = interactions.to(device).float()
                 
-                logits = model(emb_a, emb_b, lengths_a, lengths_b).squeeze()
+                logits = model(emb_a, emb_b, lengths_a, lengths_b).squeeze(-1)  # ✅ CHANGED FROM .squeeze() to .squeeze(-1)
                 loss = criterion(logits, interactions)
                 
                 val_losses.append(loss.item())
@@ -1241,7 +1308,7 @@ if __name__ == '__main__':
                     use_variable_length=config['use_variable_length'],
                     epochs=50,
                     batch_size=4,
-                    learning_rate=1e-4,
+                    learning_rate=3e-4,  # ✅ INCREASED FROM 1e-4 to 3e-4
                     save_every_epochs=10  # Save checkpoints every 10 epochs
                 )
                 
