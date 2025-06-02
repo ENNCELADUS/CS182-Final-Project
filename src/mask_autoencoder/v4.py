@@ -221,15 +221,21 @@ class ProteinPairDataset(Dataset):
             self.interaction_col = interaction_col
         
         # Filter valid pairs
-        valid_indices = []
-        for idx in range(len(self.pairs_df)):
-            row = self.pairs_df.iloc[idx]
-            if (row[self.protein_a_col] in self.embeddings_dict and 
-                row[self.protein_b_col] in self.embeddings_dict):
-                valid_indices.append(idx)
+        print(f"🔥 Dataset filtering: Processing {len(self.pairs_df)} pairs...", flush=True)
+        sys.stdout.flush()
         
-        self.valid_indices = valid_indices
-        print(f"Dataset: {len(valid_indices)} valid pairs out of {len(self.pairs_df)} total pairs")
+        # ✅ OPTIMIZED FILTERING - Use pandas operations instead of slow loop
+        embedding_keys = set(self.embeddings_dict.keys())
+        
+        # Use pandas isin() for fast filtering - much faster than iterating
+        valid_a = self.pairs_df[self.protein_a_col].isin(embedding_keys)
+        valid_b = self.pairs_df[self.protein_b_col].isin(embedding_keys)
+        valid_mask = valid_a & valid_b
+        
+        self.valid_indices = valid_mask[valid_mask].index.tolist()
+        
+        print(f"Dataset: {len(self.valid_indices)} valid pairs out of {len(self.pairs_df)} total pairs", flush=True)
+        sys.stdout.flush()
     
     def __len__(self):
         return len(self.valid_indices)
@@ -687,18 +693,30 @@ class ProteinInteractionClassifier(nn.Module):
 
 
 def train_model(train_data, val_data, embeddings_dict, 
-                epochs=30, batch_size=4, learning_rate=3e-4,  # ✅ INCREASED FROM 1e-4 to 3e-4
+                epochs=3, batch_size=2, learning_rate=3e-4,  # ✅ REDUCED from 50 to 3 for initial testing
                 use_variable_length=True,
                 save_every_epochs=1,  # Save checkpoint every N epochs
                 device='cuda' if torch.cuda.is_available() else 'cpu'):
     """
     Train the enhanced protein interaction prediction model
     """
+    print(f"🔥 INSIDE train_model() - START", flush=True)
+    print(f"🔥 Parameters: epochs={epochs}, batch_size={batch_size}, variable_length={use_variable_length}", flush=True)
+    sys.stdout.flush()
+    
     # Create datasets
+    print(f"🔥 Creating ProteinPairDataset for training...", flush=True)
+    sys.stdout.flush()
     train_dataset = ProteinPairDataset(train_data, embeddings_dict)
+    
+    print(f"🔥 Creating ProteinPairDataset for validation...", flush=True)
+    sys.stdout.flush()
     val_dataset = ProteinPairDataset(val_data, embeddings_dict)
 
     # Create data loaders
+    print(f"🔥 Creating DataLoader for training dataset ({len(train_dataset)} samples)...", flush=True)
+    sys.stdout.flush()
+    
     train_loader = DataLoader(
         train_dataset, 
         batch_size=batch_size, 
@@ -707,6 +725,10 @@ def train_model(train_data, val_data, embeddings_dict,
         num_workers=0,        # ✅ CHANGED TO 0
         pin_memory=False      # ✅ CHANGED TO False
     )
+    
+    print(f"🔥 Creating DataLoader for validation dataset ({len(val_dataset)} samples)...", flush=True)
+    sys.stdout.flush()
+    
     val_loader = DataLoader(
         val_dataset, 
         batch_size=batch_size, 
@@ -716,7 +738,13 @@ def train_model(train_data, val_data, embeddings_dict,
         pin_memory=False
     )
     
+    print(f"🔥 DataLoaders created successfully!", flush=True)
+    sys.stdout.flush()
+    
     # Calculate training statistics
+    print(f"🔥 Calculating training statistics...", flush=True)
+    sys.stdout.flush()
+    
     num_train_batches = len(train_loader)
     num_val_batches = len(val_loader)
     total_train_steps = num_train_batches * epochs
@@ -732,25 +760,34 @@ def train_model(train_data, val_data, embeddings_dict,
     print(f"Progress reports every 50 batches")
     print(f"Checkpoints saved every {save_every_epochs} epochs")
     
-    # ✅ ENHANCED GPU DETECTION AND ERROR HANDLING
+    print(f"🔥 Starting GPU detection...", flush=True)
+    sys.stdout.flush()
+    
+    # ✅ OPTIMIZED GPU DETECTION - Faster and more robust
     if torch.cuda.is_available():
+        print(f"🔥 CUDA available, clearing cache...", flush=True)
+        sys.stdout.flush()
         torch.cuda.empty_cache()
         
-        # Check GPU health
+        # Quick GPU count check
         gpu_count = torch.cuda.device_count()
         print(f"\n🔍 GPU HEALTH CHECK:")
         print(f"Available GPUs: {gpu_count}")
         
         working_gpus = []
-        for i in range(gpu_count):
+        for i in range(min(gpu_count, 8)):  # ✅ LIMIT TO 8 GPUs MAX to prevent hanging
             try:
-                # Test GPU by allocating small tensor
-                test_tensor = torch.randn(10, 10).cuda(i)
+                print(f"🔥 Testing GPU {i}...", flush=True)
+                sys.stdout.flush()
+                
+                # ✅ SMALLER TEST - Reduce memory allocation
+                test_tensor = torch.randn(5, 5).cuda(i)  # Smaller tensor
                 gpu_name = torch.cuda.get_device_name(i)
                 memory_total = torch.cuda.get_device_properties(i).total_memory / 1024**3
                 print(f"  GPU {i}: {gpu_name} ({memory_total:.1f}GB) - ✅ Working")
                 working_gpus.append(i)
                 del test_tensor
+                torch.cuda.empty_cache()  # ✅ Clear after each test
             except Exception as e:
                 print(f"  GPU {i}: ❌ Error - {str(e)}")
         
@@ -772,6 +809,9 @@ def train_model(train_data, val_data, embeddings_dict,
         print("❌ CUDA not available, using CPU")
         device = 'cpu'
 
+    print(f"🔥 Creating enhanced model...", flush=True)
+    sys.stdout.flush()
+    
     # Create enhanced model
     model = ProteinInteractionClassifier(
         encoder_layers=8,                     # ✅ USE 8 instead of 16
@@ -780,11 +820,15 @@ def train_model(train_data, val_data, embeddings_dict,
         use_variable_length=use_variable_length,
         decoder_hidden_dims=[256, 128, 64]   # ✅ USE smaller decoder
     ).to(device)
+    
+    print(f"🔥 Model created and moved to {device}!", flush=True)
+    sys.stdout.flush()
 
-    # ✅ IMPROVED MULTI-GPU SETUP
+    # ✅ OPTIMIZED MULTI-GPU SETUP
     original_batch_size = batch_size
     if device != 'cpu' and len(working_gpus) > 1:
-        print(f"🔄 Setting up DataParallel with GPUs: {working_gpus}")
+        print(f"🔥 Setting up DataParallel with GPUs: {working_gpus}", flush=True)
+        sys.stdout.flush()
         
         # Only use working GPUs
         if len(working_gpus) < torch.cuda.device_count():
@@ -792,7 +836,13 @@ def train_model(train_data, val_data, embeddings_dict,
             os.environ['CUDA_VISIBLE_DEVICES'] = ','.join(map(str, working_gpus))
             print(f"Set CUDA_VISIBLE_DEVICES to: {os.environ['CUDA_VISIBLE_DEVICES']}")
         
-        model = nn.DataParallel(model, device_ids=working_gpus)
+        try:
+            model = nn.DataParallel(model, device_ids=working_gpus)
+            print(f"🔥 DataParallel setup successful!", flush=True)
+            sys.stdout.flush()
+        except Exception as e:
+            print(f"⚠️ DataParallel setup failed: {e}, using single GPU instead")
+            device = f'cuda:{working_gpus[0]}'
         
         # Adjust batch size for multiple GPUs
         batch_size_per_gpu = max(1, batch_size // len(working_gpus))
@@ -802,6 +852,9 @@ def train_model(train_data, val_data, embeddings_dict,
         
         if effective_batch_size != original_batch_size:
             print(f"⚠️ Batch size adjusted from {original_batch_size} to {effective_batch_size}")
+    
+    print(f"🔥 Creating optimizer and scheduler...", flush=True)
+    sys.stdout.flush()
     
     # Optimizer with weight decay
     optimizer = torch.optim.AdamW(
@@ -818,12 +871,18 @@ def train_model(train_data, val_data, embeddings_dict,
     # Loss function
     criterion = nn.BCEWithLogitsLoss()
     
+    print(f"🔥 Setting up training variables...", flush=True)
+    sys.stdout.flush()
+    
     # Training setup - use AUC as primary metric
     best_val_auc = 0
     best_val_loss = float('inf')
     history = []
     
     # Create log directory
+    print(f"🔥 Creating directories...", flush=True)
+    sys.stdout.flush()
+    
     os.makedirs('logs', exist_ok=True)
     os.makedirs('models', exist_ok=True)
     ts = datetime.now().strftime('%Y%m%d-%H%M%S')
@@ -836,6 +895,37 @@ def train_model(train_data, val_data, embeddings_dict,
     print(f"Model parameters: {sum(p.numel() for p in model.parameters()):,}")
     print(f"Best model will be saved to: {best_path}")
     print(f"Checkpoints will be saved to: {checkpoint_dir}/")
+    
+    # ✅ CRITICAL TEST: Test model with first batch before training
+    print("🔥 Testing model with first batch before training...", flush=True)
+    sys.stdout.flush()
+    
+    try:
+        test_batch = next(iter(train_loader))
+        emb_a, emb_b, lengths_a, lengths_b, interactions = test_batch
+        print(f"🔥 Test batch: {len(interactions)} samples, emb_a: {emb_a.shape}, emb_b: {emb_b.shape}", flush=True)
+        
+        # Move to device
+        emb_a = emb_a.to(device)
+        emb_b = emb_b.to(device)
+        lengths_a = lengths_a.to(device)
+        lengths_b = lengths_b.to(device)
+        
+        # Test forward pass
+        with torch.no_grad():
+            model.eval()
+            test_output = model(emb_a, emb_b, lengths_a, lengths_b)
+            print(f"🔥 Model test SUCCESSFUL! Output: {test_output.shape}", flush=True)
+        
+        # Clean up
+        del emb_a, emb_b, lengths_a, lengths_b, interactions, test_output
+        torch.cuda.empty_cache() if torch.cuda.is_available() else None
+        
+    except Exception as e:
+        print(f"❌ Model test FAILED: {e}")
+        raise e
+    print("🔥 ENTERING TRAINING LOOP...", flush=True)
+    sys.stdout.flush()
     
     for epoch in range(1, epochs + 1):
         # Training phase
@@ -1353,6 +1443,11 @@ if __name__ == '__main__':
         print("🔥 ABOUT TO CHECK FOR CHECKPOINTS...", flush=True)
         sys.stdout.flush()
         
+        # ✅ DISABLED AUTOMATIC CHECKPOINT DETECTION - STARTING FRESH
+        print("🔍 Checkpoint detection disabled - starting fresh training...", flush=True)
+        sys.stdout.flush()
+        
+        """
         # ✅ ADD AUTOMATIC CHECKPOINT DETECTION
         print("🔍 Checking for existing checkpoints to resume...")
         
@@ -1409,6 +1504,10 @@ if __name__ == '__main__':
                 print("No checkpoint files found in directory")
         else:
             print("No existing checkpoint directories found")
+        """
+        
+        print("🔥 STARTING TRAINING CONFIGURATIONS...", flush=True)
+        sys.stdout.flush()
         
         # Train models with different configurations (only if not resumed)
         # Compare variable-length vs fixed-length embeddings
@@ -1417,20 +1516,32 @@ if __name__ == '__main__':
             {'use_variable_length': False, 'name': 'fixed_length'}
         ]
         
+        print(f"🔥 CONFIGURATIONS DEFINED: {len(configurations)} configs", flush=True)
+        sys.stdout.flush()
+        
         best_models = {}
+        
+        print("🔥 ENTERING TRAINING LOOP...", flush=True)
+        sys.stdout.flush()
         
         for config in configurations:
             config_name = config['name']
+            print(f"🔥 STARTING CONFIG: {config_name}", flush=True)
+            sys.stdout.flush()
+            
             print(f"\n" + "="*60)
             print(f"Training enhanced model with {config_name} embeddings...")
             print("="*60)
             
             try:
+                print(f"🔥 CALLING train_model() for {config_name}...", flush=True)
+                sys.stdout.flush()
+                
                 history, model_path = train_model(
                     train_data, cv_data, protein_embeddings,
                     use_variable_length=config['use_variable_length'],
-                    epochs=50,
-                    batch_size=8,  # ✅ INCREASED FROM 4 to 8 for 4 GPUs (2 per GPU)
+                    epochs=3,  # ✅ REDUCED from 50 to 3 for initial testing
+                    batch_size=2,  # ✅ REDUCED from 8 to 2 to prevent memory issues
                     learning_rate=3e-4,  # ✅ INCREASED FROM 1e-4 to 3e-4
                     save_every_epochs=1  # Save checkpoints every 1 epochs
                 )
