@@ -1,0 +1,540 @@
+Mon Jun  2 03:03:11 2025       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 550.54.15              Driver Version: 550.54.15      CUDA Version: 12.4     |
+|-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA GeForce RTX 2080 Ti     On  |   00000000:02:00.0 Off |                  N/A |
+|ERR!   36C    P2            ERR! /  250W |       0MiB /  11264MiB |      0%      Default |
+|                                         |                        |                  N/A |
++-----------------------------------------+------------------------+----------------------+
+|   1  NVIDIA GeForce RTX 2080 Ti     On  |   00000000:03:00.0 Off |                  N/A |
+| 25%   25C    P8             27W /  250W |       0MiB /  11264MiB |      0%      Default |
+|                                         |                        |                  N/A |
++-----------------------------------------+------------------------+----------------------+
+                                                                                         
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI        PID   Type   Process name                              GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+Enhanced Protein-Protein Interaction Prediction v4
+============================================================
+Features: RoPE encoding, 16-layer transformers, cross-attention, enhanced MLP
+============================================================
+Script directory: /public/home/CS182/wangar2023-cs182/CS182-Final-Project/src/mask_autoencoder
+Project root: /public/home/CS182/wangar2023-cs182/CS182-Final-Project
+Loading data...
+Looking for data in: /public/home/CS182/wangar2023-cs182/CS182-Final-Project/data/full_dataset
+✅ Found: train_data.pkl
+✅ Found: validation_data.pkl
+✅ Found: test1_data.pkl
+✅ Found: test2_data.pkl
+✅ Found: embeddings_standardized.pkl
+
+Examining training data structure:
+DataFrame columns: ['uniprotID_A', 'uniprotID_B', 'isInteraction', 'trainTest', 'sequence_A', 'sequence_B']
+First row sample: {'uniprotID_A': 'O43759', 'uniprotID_B': 'P59991', 'isInteraction': 0, 'trainTest': 'train', 'sequence_A': 'MEGGAYGAGKAGGAFDPYTLVRQPHTILRVVSWLFSIVVFGSIVNEGYLNSASEGEEFCIYNRNPNACSYGVAVGVLAFLTCLLYLALDVYFPQISSVKDRKKAVLSDIGVSAFWAFLWFVGFCYLANQWQVSKPKDNPLNEGTDAARAAIAFSFFSIFTWAGQAVLAFQRYQIGADSALFSQDYMDPSQDSSMPYAPYVEPTGPDPAGMGGTYQQPANTFDTEPQGYQSQGY', 'sequence_B': 'MCHTSCSSGCQPACCAPSPCQPACCVPSSCQASCCVPVGCQSSVCVPVSFKPAVCLPVSCQSSVCVPMSFKSAVCVPVSCQSSVCVPVSCRPIVCAAPSCQSSLCVPVSCRPVVYAAPSCQSSGCCQPSCTSVLCRPISYSISSCC'}
+
+Loading protein embeddings...
+Loaded 12026 protein embeddings
+       uniprotID_A  ...                                         sequence_B
+100353      O43759  ...  MCHTSCSSGCQPACCAPSPCQPACCVPSSCQASCCVPVGCQSSVCV...
+118225      P54646  ...  MESPGESGAGSPGAPSPSSFTTGHLAREKPAQDPLYDVPNASGGQA...
+89464       O15344  ...  MAAADAEAVPARGEPQQDCCVKTELLGEETPMAADEGSAEKQAGEA...
+90759       O14964  ...  MESENMDSENMKTENMESQNVDFESVSSVTALEALSKLLNPEEEDD...
+126347      Q5VYS8  ...  MVGREKELSIHFVPGSCRLVEEEVNIPNRRVLVTGATGLLGRAVHK...
+
+[5 rows x 6 columns]
+Protein ID: Q00994, Embedding shape: (113, 960)
+Protein ID: Q8TC90, Embedding shape: (408, 960)
+Protein ID: Q9UJY1, Embedding shape: (198, 960)
+Protein ID: Q9Y6Q6, Embedding shape: (618, 960)
+Protein ID: A4QMS7, Embedding shape: (149, 960)
+
+Data loaded successfully:
+Training data: 85329 pairs
+Validation data: 21333 pairs
+Test1 data: 24898 pairs
+Test2 data: 136939 pairs
+Protein embeddings: 12026 proteins
+
+============================================================
+Training enhanced model with variable_length embeddings...
+============================================================
+Using columns: Protein A = 'uniprotID_A', Protein B = 'uniprotID_B', Interaction = 'isInteraction'
+Dataset: 85329 valid pairs out of 85329 total pairs
+Using columns: Protein A = 'uniprotID_A', Protein B = 'uniprotID_B', Interaction = 'isInteraction'
+Dataset: 21333 valid pairs out of 21333 total pairs
+📊 TRAINING STATISTICS:
+Training samples: 85,329
+Validation samples: 21,333
+Batch size: 4
+Training batches per epoch: 21333
+Validation batches per epoch: 5334
+Total epochs: 50
+Total training steps: 1,066,650
+Progress reports every 50 batches
+Checkpoints saved every 10 epochs
+GPU Memory before training: 0.00 GB
+Using 2 GPUs
+Training enhanced model with variable_length=True
+Model parameters: 20,226,433
+Best model will be saved to: models/ppi_v4_enhanced_best_20250602-030345.pth
+Checkpoints will be saved to: models/checkpoints_20250602-030345/
+Epoch 1/50 Batch 0/21333 (0/1066650 total) Loss: 0.7944, GPU: 0.31GB
+Epoch 1/50 Batch 50/21333 (50/1066650 total) Loss: 0.9090, GPU: 0.32GB
+Epoch 1/50 Batch 100/21333 (100/1066650 total) Loss: 2.8800, GPU: 0.32GB
+Epoch 1/50 Batch 150/21333 (150/1066650 total) Loss: 0.1691, GPU: 0.32GB
+Epoch 1/50 Batch 200/21333 (200/1066650 total) Loss: 2.9926, GPU: 0.32GB
+Epoch 1/50 Batch 250/21333 (250/1066650 total) Loss: 1.4720, GPU: 0.32GB
+Epoch 1/50 Batch 300/21333 (300/1066650 total) Loss: 0.7112, GPU: 0.32GB
+Epoch 1/50 Batch 350/21333 (350/1066650 total) Loss: 0.5470, GPU: 0.32GB
+Epoch 1/50 Batch 400/21333 (400/1066650 total) Loss: 1.3352, GPU: 0.32GB
+Epoch 1/50 Batch 450/21333 (450/1066650 total) Loss: 0.8444, GPU: 0.32GB
+Epoch 1/50 Batch 500/21333 (500/1066650 total) Loss: 0.6291, GPU: 0.32GB
+Epoch 1/50 Batch 550/21333 (550/1066650 total) Loss: 0.4444, GPU: 0.32GB
+Epoch 1/50 Batch 600/21333 (600/1066650 total) Loss: 1.0946, GPU: 0.32GB
+Epoch 1/50 Batch 650/21333 (650/1066650 total) Loss: 0.7484, GPU: 0.32GB
+Epoch 1/50 Batch 700/21333 (700/1066650 total) Loss: 1.2289, GPU: 0.32GB
+Epoch 1/50 Batch 750/21333 (750/1066650 total) Loss: 0.9100, GPU: 0.32GB
+Epoch 1/50 Batch 800/21333 (800/1066650 total) Loss: 0.8112, GPU: 0.32GB
+Epoch 1/50 Batch 850/21333 (850/1066650 total) Loss: 0.8288, GPU: 0.32GB
+Epoch 1/50 Batch 900/21333 (900/1066650 total) Loss: 0.2115, GPU: 0.32GB
+Epoch 1/50 Batch 950/21333 (950/1066650 total) Loss: 2.0536, GPU: 0.32GB
+Epoch 1/50 Batch 1000/21333 (1000/1066650 total) Loss: 0.8427, GPU: 0.32GB
+Epoch 1/50 Batch 1050/21333 (1050/1066650 total) Loss: 0.7380, GPU: 0.32GB
+Epoch 1/50 Batch 1100/21333 (1100/1066650 total) Loss: 1.1240, GPU: 0.32GB
+Epoch 1/50 Batch 1150/21333 (1150/1066650 total) Loss: 0.6213, GPU: 0.32GB
+Epoch 1/50 Batch 1200/21333 (1200/1066650 total) Loss: 0.5270, GPU: 0.32GB
+Epoch 1/50 Batch 1250/21333 (1250/1066650 total) Loss: 0.7224, GPU: 0.32GB
+Epoch 1/50 Batch 1300/21333 (1300/1066650 total) Loss: 0.4910, GPU: 0.32GB
+Epoch 1/50 Batch 1350/21333 (1350/1066650 total) Loss: 0.6540, GPU: 0.32GB
+Epoch 1/50 Batch 1400/21333 (1400/1066650 total) Loss: 0.9493, GPU: 0.32GB
+Epoch 1/50 Batch 1450/21333 (1450/1066650 total) Loss: 0.8525, GPU: 0.32GB
+Epoch 1/50 Batch 1500/21333 (1500/1066650 total) Loss: 1.2913, GPU: 0.32GB
+Epoch 1/50 Batch 1550/21333 (1550/1066650 total) Loss: 0.9209, GPU: 0.32GB
+Epoch 1/50 Batch 1600/21333 (1600/1066650 total) Loss: 0.5721, GPU: 0.32GB
+Epoch 1/50 Batch 1650/21333 (1650/1066650 total) Loss: 0.7669, GPU: 0.32GB
+Epoch 1/50 Batch 1700/21333 (1700/1066650 total) Loss: 1.7470, GPU: 0.32GB
+Epoch 1/50 Batch 1750/21333 (1750/1066650 total) Loss: 0.5325, GPU: 0.32GB
+Epoch 1/50 Batch 1800/21333 (1800/1066650 total) Loss: 0.8064, GPU: 0.32GB
+Epoch 1/50 Batch 1850/21333 (1850/1066650 total) Loss: 0.5836, GPU: 0.32GB
+Epoch 1/50 Batch 1900/21333 (1900/1066650 total) Loss: 0.9214, GPU: 0.32GB
+Epoch 1/50 Batch 1950/21333 (1950/1066650 total) Loss: 0.9234, GPU: 0.32GB
+Epoch 1/50 Batch 2000/21333 (2000/1066650 total) Loss: 1.0381, GPU: 0.32GB
+Epoch 1/50 Batch 2050/21333 (2050/1066650 total) Loss: 0.8134, GPU: 0.32GB
+Epoch 1/50 Batch 2100/21333 (2100/1066650 total) Loss: 0.8445, GPU: 0.32GB
+Epoch 1/50 Batch 2150/21333 (2150/1066650 total) Loss: 0.8025, GPU: 0.32GB
+Epoch 1/50 Batch 2200/21333 (2200/1066650 total) Loss: 1.0045, GPU: 0.32GB
+Epoch 1/50 Batch 2250/21333 (2250/1066650 total) Loss: 0.8628, GPU: 0.32GB
+Epoch 1/50 Batch 2300/21333 (2300/1066650 total) Loss: 1.4250, GPU: 0.32GB
+Epoch 1/50 Batch 2350/21333 (2350/1066650 total) Loss: 0.6589, GPU: 0.32GB
+Epoch 1/50 Batch 2400/21333 (2400/1066650 total) Loss: 0.7108, GPU: 0.32GB
+Epoch 1/50 Batch 2450/21333 (2450/1066650 total) Loss: 2.1863, GPU: 0.32GB
+Epoch 1/50 Batch 2500/21333 (2500/1066650 total) Loss: 1.3420, GPU: 0.32GB
+Epoch 1/50 Batch 2550/21333 (2550/1066650 total) Loss: 0.3831, GPU: 0.32GB
+Epoch 1/50 Batch 2600/21333 (2600/1066650 total) Loss: 2.0124, GPU: 0.32GB
+Epoch 1/50 Batch 2650/21333 (2650/1066650 total) Loss: 0.6151, GPU: 0.32GB
+Epoch 1/50 Batch 2700/21333 (2700/1066650 total) Loss: 0.9488, GPU: 0.32GB
+Epoch 1/50 Batch 2750/21333 (2750/1066650 total) Loss: 0.8713, GPU: 0.32GB
+Epoch 1/50 Batch 2800/21333 (2800/1066650 total) Loss: 1.3123, GPU: 0.32GB
+Epoch 1/50 Batch 2850/21333 (2850/1066650 total) Loss: 1.5368, GPU: 0.32GB
+Epoch 1/50 Batch 2900/21333 (2900/1066650 total) Loss: 0.8125, GPU: 0.32GB
+Epoch 1/50 Batch 2950/21333 (2950/1066650 total) Loss: 0.8158, GPU: 0.32GB
+Epoch 1/50 Batch 3000/21333 (3000/1066650 total) Loss: 1.0562, GPU: 0.32GB
+Epoch 1/50 Batch 3050/21333 (3050/1066650 total) Loss: 1.4295, GPU: 0.32GB
+Epoch 1/50 Batch 3100/21333 (3100/1066650 total) Loss: 0.5001, GPU: 0.32GB
+Epoch 1/50 Batch 3150/21333 (3150/1066650 total) Loss: 0.6933, GPU: 0.32GB
+Epoch 1/50 Batch 3200/21333 (3200/1066650 total) Loss: 1.1451, GPU: 0.32GB
+Epoch 1/50 Batch 3250/21333 (3250/1066650 total) Loss: 0.5993, GPU: 0.32GB
+Epoch 1/50 Batch 3300/21333 (3300/1066650 total) Loss: 0.7749, GPU: 0.32GB
+Epoch 1/50 Batch 3350/21333 (3350/1066650 total) Loss: 0.6638, GPU: 0.32GB
+Epoch 1/50 Batch 3400/21333 (3400/1066650 total) Loss: 1.1758, GPU: 0.32GB
+Epoch 1/50 Batch 3450/21333 (3450/1066650 total) Loss: 1.2545, GPU: 0.32GB
+Epoch 1/50 Batch 3500/21333 (3500/1066650 total) Loss: 0.4958, GPU: 0.32GB
+Epoch 1/50 Batch 3550/21333 (3550/1066650 total) Loss: 0.8792, GPU: 0.32GB
+Epoch 1/50 Batch 3600/21333 (3600/1066650 total) Loss: 0.5327, GPU: 0.32GB
+Epoch 1/50 Batch 3650/21333 (3650/1066650 total) Loss: 0.9368, GPU: 0.32GB
+Epoch 1/50 Batch 3700/21333 (3700/1066650 total) Loss: 0.5613, GPU: 0.32GB
+Epoch 1/50 Batch 3750/21333 (3750/1066650 total) Loss: 0.8400, GPU: 0.32GB
+Epoch 1/50 Batch 3800/21333 (3800/1066650 total) Loss: 1.3107, GPU: 0.32GB
+Epoch 1/50 Batch 3850/21333 (3850/1066650 total) Loss: 0.7123, GPU: 0.32GB
+Epoch 1/50 Batch 3900/21333 (3900/1066650 total) Loss: 0.4910, GPU: 0.32GB
+Epoch 1/50 Batch 3950/21333 (3950/1066650 total) Loss: 0.7877, GPU: 0.32GB
+Epoch 1/50 Batch 4000/21333 (4000/1066650 total) Loss: 0.9034, GPU: 0.32GB
+Epoch 1/50 Batch 4050/21333 (4050/1066650 total) Loss: 0.6883, GPU: 0.32GB
+Epoch 1/50 Batch 4100/21333 (4100/1066650 total) Loss: 0.6571, GPU: 0.32GB
+Epoch 1/50 Batch 4150/21333 (4150/1066650 total) Loss: 0.6136, GPU: 0.32GB
+Epoch 1/50 Batch 4200/21333 (4200/1066650 total) Loss: 0.5690, GPU: 0.32GB
+Epoch 1/50 Batch 4250/21333 (4250/1066650 total) Loss: 0.8532, GPU: 0.32GB
+Epoch 1/50 Batch 4300/21333 (4300/1066650 total) Loss: 0.8286, GPU: 0.32GB
+Epoch 1/50 Batch 4350/21333 (4350/1066650 total) Loss: 0.8431, GPU: 0.32GB
+Epoch 1/50 Batch 4400/21333 (4400/1066650 total) Loss: 0.6218, GPU: 0.32GB
+Epoch 1/50 Batch 4450/21333 (4450/1066650 total) Loss: 0.8452, GPU: 0.32GB
+Epoch 1/50 Batch 4500/21333 (4500/1066650 total) Loss: 0.4989, GPU: 0.32GB
+Epoch 1/50 Batch 4550/21333 (4550/1066650 total) Loss: 0.5444, GPU: 0.32GB
+Epoch 1/50 Batch 4600/21333 (4600/1066650 total) Loss: 0.8052, GPU: 0.32GB
+Epoch 1/50 Batch 4650/21333 (4650/1066650 total) Loss: 0.7414, GPU: 0.32GB
+Epoch 1/50 Batch 4700/21333 (4700/1066650 total) Loss: 0.6504, GPU: 0.32GB
+Epoch 1/50 Batch 4750/21333 (4750/1066650 total) Loss: 0.9270, GPU: 0.32GB
+Epoch 1/50 Batch 4800/21333 (4800/1066650 total) Loss: 0.8860, GPU: 0.32GB
+Epoch 1/50 Batch 4850/21333 (4850/1066650 total) Loss: 0.7136, GPU: 0.32GB
+Epoch 1/50 Batch 4900/21333 (4900/1066650 total) Loss: 0.4414, GPU: 0.32GB
+Epoch 1/50 Batch 4950/21333 (4950/1066650 total) Loss: 0.6029, GPU: 0.32GB
+Epoch 1/50 Batch 5000/21333 (5000/1066650 total) Loss: 0.6317, GPU: 0.32GB
+Epoch 1/50 Batch 5050/21333 (5050/1066650 total) Loss: 0.8027, GPU: 0.32GB
+Epoch 1/50 Batch 5100/21333 (5100/1066650 total) Loss: 0.6976, GPU: 0.32GB
+Epoch 1/50 Batch 5150/21333 (5150/1066650 total) Loss: 0.7252, GPU: 0.32GB
+Epoch 1/50 Batch 5200/21333 (5200/1066650 total) Loss: 0.7619, GPU: 0.32GB
+Epoch 1/50 Batch 5250/21333 (5250/1066650 total) Loss: 0.8742, GPU: 0.32GB
+Epoch 1/50 Batch 5300/21333 (5300/1066650 total) Loss: 0.7707, GPU: 0.32GB
+Epoch 1/50 Batch 5350/21333 (5350/1066650 total) Loss: 0.6565, GPU: 0.32GB
+Epoch 1/50 Batch 5400/21333 (5400/1066650 total) Loss: 0.8439, GPU: 0.32GB
+Epoch 1/50 Batch 5450/21333 (5450/1066650 total) Loss: 0.6187, GPU: 0.32GB
+Epoch 1/50 Batch 5500/21333 (5500/1066650 total) Loss: 0.6272, GPU: 0.32GB
+Epoch 1/50 Batch 5550/21333 (5550/1066650 total) Loss: 0.6218, GPU: 0.32GB
+Epoch 1/50 Batch 5600/21333 (5600/1066650 total) Loss: 0.6262, GPU: 0.32GB
+Epoch 1/50 Batch 5650/21333 (5650/1066650 total) Loss: 0.8027, GPU: 0.32GB
+Epoch 1/50 Batch 5700/21333 (5700/1066650 total) Loss: 1.2752, GPU: 0.32GB
+Epoch 1/50 Batch 5750/21333 (5750/1066650 total) Loss: 0.5983, GPU: 0.32GB
+Epoch 1/50 Batch 5800/21333 (5800/1066650 total) Loss: 0.6579, GPU: 0.32GB
+Epoch 1/50 Batch 5850/21333 (5850/1066650 total) Loss: 0.7465, GPU: 0.32GB
+Epoch 1/50 Batch 5900/21333 (5900/1066650 total) Loss: 0.5858, GPU: 0.32GB
+Epoch 1/50 Batch 5950/21333 (5950/1066650 total) Loss: 0.7368, GPU: 0.32GB
+Epoch 1/50 Batch 6000/21333 (6000/1066650 total) Loss: 0.7566, GPU: 0.32GB
+Epoch 1/50 Batch 6050/21333 (6050/1066650 total) Loss: 0.6358, GPU: 0.32GB
+Epoch 1/50 Batch 6100/21333 (6100/1066650 total) Loss: 0.6434, GPU: 0.32GB
+Epoch 1/50 Batch 6150/21333 (6150/1066650 total) Loss: 0.5552, GPU: 0.32GB
+Epoch 1/50 Batch 6200/21333 (6200/1066650 total) Loss: 0.6191, GPU: 0.32GB
+Epoch 1/50 Batch 6250/21333 (6250/1066650 total) Loss: 0.5918, GPU: 0.32GB
+Epoch 1/50 Batch 6300/21333 (6300/1066650 total) Loss: 0.8539, GPU: 0.32GB
+Epoch 1/50 Batch 6350/21333 (6350/1066650 total) Loss: 0.3835, GPU: 0.32GB
+Epoch 1/50 Batch 6400/21333 (6400/1066650 total) Loss: 1.3619, GPU: 0.32GB
+Epoch 1/50 Batch 6450/21333 (6450/1066650 total) Loss: 0.5236, GPU: 0.32GB
+Epoch 1/50 Batch 6500/21333 (6500/1066650 total) Loss: 0.7866, GPU: 0.32GB
+Epoch 1/50 Batch 6550/21333 (6550/1066650 total) Loss: 1.0775, GPU: 0.32GB
+Epoch 1/50 Batch 6600/21333 (6600/1066650 total) Loss: 0.8458, GPU: 0.32GB
+Epoch 1/50 Batch 6650/21333 (6650/1066650 total) Loss: 0.8395, GPU: 0.32GB
+Epoch 1/50 Batch 6700/21333 (6700/1066650 total) Loss: 0.6198, GPU: 0.32GB
+Epoch 1/50 Batch 6750/21333 (6750/1066650 total) Loss: 0.5691, GPU: 0.32GB
+Epoch 1/50 Batch 6800/21333 (6800/1066650 total) Loss: 0.7403, GPU: 0.32GB
+Epoch 1/50 Batch 6850/21333 (6850/1066650 total) Loss: 0.8160, GPU: 0.32GB
+Epoch 1/50 Batch 6900/21333 (6900/1066650 total) Loss: 0.6781, GPU: 0.32GB
+Epoch 1/50 Batch 6950/21333 (6950/1066650 total) Loss: 0.6546, GPU: 0.32GB
+Epoch 1/50 Batch 7000/21333 (7000/1066650 total) Loss: 0.8313, GPU: 0.32GB
+Epoch 1/50 Batch 7050/21333 (7050/1066650 total) Loss: 0.6325, GPU: 0.32GB
+Epoch 1/50 Batch 7100/21333 (7100/1066650 total) Loss: 0.9954, GPU: 0.32GB
+Epoch 1/50 Batch 7150/21333 (7150/1066650 total) Loss: 0.6874, GPU: 0.32GB
+Epoch 1/50 Batch 7200/21333 (7200/1066650 total) Loss: 0.6909, GPU: 0.32GB
+Epoch 1/50 Batch 7250/21333 (7250/1066650 total) Loss: 0.7006, GPU: 0.32GB
+Epoch 1/50 Batch 7300/21333 (7300/1066650 total) Loss: 0.5624, GPU: 0.32GB
+Epoch 1/50 Batch 7350/21333 (7350/1066650 total) Loss: 0.7606, GPU: 0.32GB
+Epoch 1/50 Batch 7400/21333 (7400/1066650 total) Loss: 0.6194, GPU: 0.32GB
+Epoch 1/50 Batch 7450/21333 (7450/1066650 total) Loss: 0.9029, GPU: 0.32GB
+Epoch 1/50 Batch 7500/21333 (7500/1066650 total) Loss: 0.6594, GPU: 0.32GB
+Epoch 1/50 Batch 7550/21333 (7550/1066650 total) Loss: 0.8619, GPU: 0.32GB
+Epoch 1/50 Batch 7600/21333 (7600/1066650 total) Loss: 0.7545, GPU: 0.32GB
+Epoch 1/50 Batch 7650/21333 (7650/1066650 total) Loss: 0.6494, GPU: 0.32GB
+Epoch 1/50 Batch 7700/21333 (7700/1066650 total) Loss: 1.1234, GPU: 0.32GB
+Epoch 1/50 Batch 7750/21333 (7750/1066650 total) Loss: 0.6153, GPU: 0.32GB
+Epoch 1/50 Batch 7800/21333 (7800/1066650 total) Loss: 0.7201, GPU: 0.32GB
+Epoch 1/50 Batch 7850/21333 (7850/1066650 total) Loss: 0.6796, GPU: 0.32GB
+Epoch 1/50 Batch 7900/21333 (7900/1066650 total) Loss: 0.6443, GPU: 0.32GB
+Epoch 1/50 Batch 7950/21333 (7950/1066650 total) Loss: 0.6083, GPU: 0.32GB
+Epoch 1/50 Batch 8000/21333 (8000/1066650 total) Loss: 0.5783, GPU: 0.32GB
+Epoch 1/50 Batch 8050/21333 (8050/1066650 total) Loss: 0.7822, GPU: 0.32GB
+Epoch 1/50 Batch 8100/21333 (8100/1066650 total) Loss: 0.6493, GPU: 0.32GB
+Epoch 1/50 Batch 8150/21333 (8150/1066650 total) Loss: 0.8209, GPU: 0.32GB
+Epoch 1/50 Batch 8200/21333 (8200/1066650 total) Loss: 0.6391, GPU: 0.32GB
+Epoch 1/50 Batch 8250/21333 (8250/1066650 total) Loss: 0.9121, GPU: 0.32GB
+Epoch 1/50 Batch 8300/21333 (8300/1066650 total) Loss: 0.8441, GPU: 0.32GB
+Epoch 1/50 Batch 8350/21333 (8350/1066650 total) Loss: 0.6819, GPU: 0.32GB
+Epoch 1/50 Batch 8400/21333 (8400/1066650 total) Loss: 0.5470, GPU: 0.32GB
+Epoch 1/50 Batch 8450/21333 (8450/1066650 total) Loss: 0.5776, GPU: 0.32GB
+Epoch 1/50 Batch 8500/21333 (8500/1066650 total) Loss: 0.8916, GPU: 0.32GB
+Epoch 1/50 Batch 8550/21333 (8550/1066650 total) Loss: 0.4944, GPU: 0.32GB
+Epoch 1/50 Batch 8600/21333 (8600/1066650 total) Loss: 0.8816, GPU: 0.32GB
+Epoch 1/50 Batch 8650/21333 (8650/1066650 total) Loss: 0.8200, GPU: 0.32GB
+Epoch 1/50 Batch 8700/21333 (8700/1066650 total) Loss: 0.7895, GPU: 0.32GB
+Epoch 1/50 Batch 8750/21333 (8750/1066650 total) Loss: 0.5970, GPU: 0.32GB
+Epoch 1/50 Batch 8800/21333 (8800/1066650 total) Loss: 1.0843, GPU: 0.32GB
+Epoch 1/50 Batch 8850/21333 (8850/1066650 total) Loss: 0.6565, GPU: 0.32GB
+Epoch 1/50 Batch 8900/21333 (8900/1066650 total) Loss: 0.9481, GPU: 0.32GB
+Epoch 1/50 Batch 8950/21333 (8950/1066650 total) Loss: 0.7984, GPU: 0.32GB
+Epoch 1/50 Batch 9000/21333 (9000/1066650 total) Loss: 0.7982, GPU: 0.32GB
+Epoch 1/50 Batch 9050/21333 (9050/1066650 total) Loss: 0.7759, GPU: 0.32GB
+Epoch 1/50 Batch 9100/21333 (9100/1066650 total) Loss: 0.7579, GPU: 0.32GB
+Epoch 1/50 Batch 9150/21333 (9150/1066650 total) Loss: 0.6113, GPU: 0.32GB
+Epoch 1/50 Batch 9200/21333 (9200/1066650 total) Loss: 0.6656, GPU: 0.32GB
+Epoch 1/50 Batch 9250/21333 (9250/1066650 total) Loss: 0.7880, GPU: 0.32GB
+Epoch 1/50 Batch 9300/21333 (9300/1066650 total) Loss: 0.5278, GPU: 0.32GB
+Epoch 1/50 Batch 9350/21333 (9350/1066650 total) Loss: 0.7085, GPU: 0.32GB
+Epoch 1/50 Batch 9400/21333 (9400/1066650 total) Loss: 1.0549, GPU: 0.32GB
+Epoch 1/50 Batch 9450/21333 (9450/1066650 total) Loss: 0.6125, GPU: 0.32GB
+Epoch 1/50 Batch 9500/21333 (9500/1066650 total) Loss: 0.6363, GPU: 0.32GB
+Epoch 1/50 Batch 9550/21333 (9550/1066650 total) Loss: 0.4024, GPU: 0.32GB
+Epoch 1/50 Batch 9600/21333 (9600/1066650 total) Loss: 0.9127, GPU: 0.32GB
+Epoch 1/50 Batch 9650/21333 (9650/1066650 total) Loss: 0.8147, GPU: 0.32GB
+Epoch 1/50 Batch 9700/21333 (9700/1066650 total) Loss: 0.6509, GPU: 0.32GB
+Epoch 1/50 Batch 9750/21333 (9750/1066650 total) Loss: 0.8413, GPU: 0.32GB
+Epoch 1/50 Batch 9800/21333 (9800/1066650 total) Loss: 0.9816, GPU: 0.32GB
+Epoch 1/50 Batch 9850/21333 (9850/1066650 total) Loss: 0.6668, GPU: 0.32GB
+Epoch 1/50 Batch 9900/21333 (9900/1066650 total) Loss: 0.9872, GPU: 0.32GB
+Epoch 1/50 Batch 9950/21333 (9950/1066650 total) Loss: 0.5678, GPU: 0.32GB
+Epoch 1/50 Batch 10000/21333 (10000/1066650 total) Loss: 0.6460, GPU: 0.32GB
+Epoch 1/50 Batch 10050/21333 (10050/1066650 total) Loss: 0.9589, GPU: 0.32GB
+Epoch 1/50 Batch 10100/21333 (10100/1066650 total) Loss: 0.7207, GPU: 0.32GB
+Epoch 1/50 Batch 10150/21333 (10150/1066650 total) Loss: 0.6548, GPU: 0.32GB
+Epoch 1/50 Batch 10200/21333 (10200/1066650 total) Loss: 0.6023, GPU: 0.32GB
+Epoch 1/50 Batch 10250/21333 (10250/1066650 total) Loss: 0.8177, GPU: 0.32GB
+Epoch 1/50 Batch 10300/21333 (10300/1066650 total) Loss: 0.6690, GPU: 0.32GB
+Epoch 1/50 Batch 10350/21333 (10350/1066650 total) Loss: 0.6773, GPU: 0.32GB
+Epoch 1/50 Batch 10400/21333 (10400/1066650 total) Loss: 0.7146, GPU: 0.32GB
+Epoch 1/50 Batch 10450/21333 (10450/1066650 total) Loss: 0.6883, GPU: 0.32GB
+Epoch 1/50 Batch 10500/21333 (10500/1066650 total) Loss: 0.6799, GPU: 0.32GB
+Epoch 1/50 Batch 10550/21333 (10550/1066650 total) Loss: 0.6025, GPU: 0.32GB
+Epoch 1/50 Batch 10600/21333 (10600/1066650 total) Loss: 0.7740, GPU: 0.32GB
+Epoch 1/50 Batch 10650/21333 (10650/1066650 total) Loss: 0.6882, GPU: 0.32GB
+Epoch 1/50 Batch 10700/21333 (10700/1066650 total) Loss: 0.9294, GPU: 0.32GB
+Epoch 1/50 Batch 10750/21333 (10750/1066650 total) Loss: 0.7382, GPU: 0.32GB
+Epoch 1/50 Batch 10800/21333 (10800/1066650 total) Loss: 0.6224, GPU: 0.32GB
+Epoch 1/50 Batch 10850/21333 (10850/1066650 total) Loss: 0.6480, GPU: 0.32GB
+Epoch 1/50 Batch 10900/21333 (10900/1066650 total) Loss: 0.7064, GPU: 0.32GB
+Epoch 1/50 Batch 10950/21333 (10950/1066650 total) Loss: 0.6008, GPU: 0.32GB
+Epoch 1/50 Batch 11000/21333 (11000/1066650 total) Loss: 0.7201, GPU: 0.32GB
+Epoch 1/50 Batch 11050/21333 (11050/1066650 total) Loss: 1.2740, GPU: 0.32GB
+Epoch 1/50 Batch 11100/21333 (11100/1066650 total) Loss: 0.8002, GPU: 0.32GB
+Epoch 1/50 Batch 11150/21333 (11150/1066650 total) Loss: 0.6032, GPU: 0.32GB
+Epoch 1/50 Batch 11200/21333 (11200/1066650 total) Loss: 0.7989, GPU: 0.32GB
+Epoch 1/50 Batch 11250/21333 (11250/1066650 total) Loss: 0.7170, GPU: 0.32GB
+Epoch 1/50 Batch 11300/21333 (11300/1066650 total) Loss: 0.7814, GPU: 0.32GB
+Epoch 1/50 Batch 11350/21333 (11350/1066650 total) Loss: 0.6831, GPU: 0.32GB
+Epoch 1/50 Batch 11400/21333 (11400/1066650 total) Loss: 0.7316, GPU: 0.32GB
+Epoch 1/50 Batch 11450/21333 (11450/1066650 total) Loss: 0.4810, GPU: 0.32GB
+Epoch 1/50 Batch 11500/21333 (11500/1066650 total) Loss: 0.6273, GPU: 0.32GB
+Epoch 1/50 Batch 11550/21333 (11550/1066650 total) Loss: 0.6802, GPU: 0.32GB
+Epoch 1/50 Batch 11600/21333 (11600/1066650 total) Loss: 0.7360, GPU: 0.32GB
+Epoch 1/50 Batch 11650/21333 (11650/1066650 total) Loss: 0.6942, GPU: 0.32GB
+Epoch 1/50 Batch 11700/21333 (11700/1066650 total) Loss: 0.7614, GPU: 0.32GB
+Epoch 1/50 Batch 11750/21333 (11750/1066650 total) Loss: 0.6923, GPU: 0.32GB
+Epoch 1/50 Batch 11800/21333 (11800/1066650 total) Loss: 0.7472, GPU: 0.32GB
+Epoch 1/50 Batch 11850/21333 (11850/1066650 total) Loss: 0.9077, GPU: 0.32GB
+Epoch 1/50 Batch 11900/21333 (11900/1066650 total) Loss: 0.7884, GPU: 0.32GB
+Epoch 1/50 Batch 11950/21333 (11950/1066650 total) Loss: 0.6903, GPU: 0.32GB
+Epoch 1/50 Batch 12000/21333 (12000/1066650 total) Loss: 0.5788, GPU: 0.32GB
+Epoch 1/50 Batch 12050/21333 (12050/1066650 total) Loss: 1.3477, GPU: 0.32GB
+Epoch 1/50 Batch 12100/21333 (12100/1066650 total) Loss: 0.7340, GPU: 0.32GB
+Epoch 1/50 Batch 12150/21333 (12150/1066650 total) Loss: 0.7470, GPU: 0.32GB
+Epoch 1/50 Batch 12200/21333 (12200/1066650 total) Loss: 0.6677, GPU: 0.32GB
+Epoch 1/50 Batch 12250/21333 (12250/1066650 total) Loss: 0.7409, GPU: 0.32GB
+Epoch 1/50 Batch 12300/21333 (12300/1066650 total) Loss: 0.7691, GPU: 0.32GB
+Epoch 1/50 Batch 12350/21333 (12350/1066650 total) Loss: 0.7165, GPU: 0.32GB
+Epoch 1/50 Batch 12400/21333 (12400/1066650 total) Loss: 0.7980, GPU: 0.32GB
+Epoch 1/50 Batch 12450/21333 (12450/1066650 total) Loss: 0.6017, GPU: 0.32GB
+Epoch 1/50 Batch 12500/21333 (12500/1066650 total) Loss: 0.5621, GPU: 0.32GB
+Epoch 1/50 Batch 12550/21333 (12550/1066650 total) Loss: 1.1167, GPU: 0.32GB
+Epoch 1/50 Batch 12600/21333 (12600/1066650 total) Loss: 0.6432, GPU: 0.32GB
+Epoch 1/50 Batch 12650/21333 (12650/1066650 total) Loss: 0.7351, GPU: 0.32GB
+Epoch 1/50 Batch 12700/21333 (12700/1066650 total) Loss: 0.6820, GPU: 0.32GB
+Epoch 1/50 Batch 12750/21333 (12750/1066650 total) Loss: 0.6732, GPU: 0.32GB
+Epoch 1/50 Batch 12800/21333 (12800/1066650 total) Loss: 0.6551, GPU: 0.32GB
+Epoch 1/50 Batch 12850/21333 (12850/1066650 total) Loss: 0.7311, GPU: 0.32GB
+Epoch 1/50 Batch 12900/21333 (12900/1066650 total) Loss: 1.0303, GPU: 0.32GB
+Epoch 1/50 Batch 12950/21333 (12950/1066650 total) Loss: 0.7469, GPU: 0.32GB
+Epoch 1/50 Batch 13000/21333 (13000/1066650 total) Loss: 0.9686, GPU: 0.32GB
+Epoch 1/50 Batch 13050/21333 (13050/1066650 total) Loss: 0.6766, GPU: 0.32GB
+Epoch 1/50 Batch 13100/21333 (13100/1066650 total) Loss: 0.7424, GPU: 0.32GB
+Epoch 1/50 Batch 13150/21333 (13150/1066650 total) Loss: 0.6973, GPU: 0.32GB
+Epoch 1/50 Batch 13200/21333 (13200/1066650 total) Loss: 0.8314, GPU: 0.32GB
+Epoch 1/50 Batch 13250/21333 (13250/1066650 total) Loss: 0.6758, GPU: 0.32GB
+Epoch 1/50 Batch 13300/21333 (13300/1066650 total) Loss: 0.8644, GPU: 0.32GB
+Epoch 1/50 Batch 13350/21333 (13350/1066650 total) Loss: 0.7530, GPU: 0.32GB
+Epoch 1/50 Batch 13400/21333 (13400/1066650 total) Loss: 0.7272, GPU: 0.32GB
+Epoch 1/50 Batch 13450/21333 (13450/1066650 total) Loss: 0.7288, GPU: 0.32GB
+Epoch 1/50 Batch 13500/21333 (13500/1066650 total) Loss: 0.7189, GPU: 0.32GB
+Epoch 1/50 Batch 13550/21333 (13550/1066650 total) Loss: 0.5367, GPU: 0.32GB
+Epoch 1/50 Batch 13600/21333 (13600/1066650 total) Loss: 0.6947, GPU: 0.32GB
+Epoch 1/50 Batch 13650/21333 (13650/1066650 total) Loss: 0.7167, GPU: 0.32GB
+Epoch 1/50 Batch 13700/21333 (13700/1066650 total) Loss: 0.7356, GPU: 0.32GB
+Epoch 1/50 Batch 13750/21333 (13750/1066650 total) Loss: 0.7565, GPU: 0.32GB
+Epoch 1/50 Batch 13800/21333 (13800/1066650 total) Loss: 0.7518, GPU: 0.32GB
+Epoch 1/50 Batch 13850/21333 (13850/1066650 total) Loss: 0.9401, GPU: 0.32GB
+Epoch 1/50 Batch 13900/21333 (13900/1066650 total) Loss: 0.7724, GPU: 0.32GB
+Epoch 1/50 Batch 13950/21333 (13950/1066650 total) Loss: 0.7308, GPU: 0.32GB
+Epoch 1/50 Batch 14000/21333 (14000/1066650 total) Loss: 0.5894, GPU: 0.32GB
+Epoch 1/50 Batch 14050/21333 (14050/1066650 total) Loss: 0.7172, GPU: 0.32GB
+Epoch 1/50 Batch 14100/21333 (14100/1066650 total) Loss: 0.5862, GPU: 0.32GB
+Epoch 1/50 Batch 14150/21333 (14150/1066650 total) Loss: 0.7322, GPU: 0.32GB
+Epoch 1/50 Batch 14200/21333 (14200/1066650 total) Loss: 0.6030, GPU: 0.32GB
+Epoch 1/50 Batch 14250/21333 (14250/1066650 total) Loss: 0.7315, GPU: 0.32GB
+Epoch 1/50 Batch 14300/21333 (14300/1066650 total) Loss: 0.6512, GPU: 0.32GB
+Epoch 1/50 Batch 14350/21333 (14350/1066650 total) Loss: 0.5846, GPU: 0.32GB
+Epoch 1/50 Batch 14400/21333 (14400/1066650 total) Loss: 0.4580, GPU: 0.32GB
+Epoch 1/50 Batch 14450/21333 (14450/1066650 total) Loss: 0.5046, GPU: 0.32GB
+Epoch 1/50 Batch 14500/21333 (14500/1066650 total) Loss: 0.7625, GPU: 0.32GB
+Epoch 1/50 Batch 14550/21333 (14550/1066650 total) Loss: 0.7406, GPU: 0.32GB
+Epoch 1/50 Batch 14600/21333 (14600/1066650 total) Loss: 0.6207, GPU: 0.32GB
+Epoch 1/50 Batch 14650/21333 (14650/1066650 total) Loss: 0.4539, GPU: 0.32GB
+Epoch 1/50 Batch 14700/21333 (14700/1066650 total) Loss: 0.8672, GPU: 0.32GB
+Epoch 1/50 Batch 14750/21333 (14750/1066650 total) Loss: 0.6373, GPU: 0.32GB
+Epoch 1/50 Batch 14800/21333 (14800/1066650 total) Loss: 0.7959, GPU: 0.32GB
+Epoch 1/50 Batch 14850/21333 (14850/1066650 total) Loss: 0.6390, GPU: 0.32GB
+Epoch 1/50 Batch 14900/21333 (14900/1066650 total) Loss: 0.6488, GPU: 0.32GB
+Epoch 1/50 Batch 14950/21333 (14950/1066650 total) Loss: 0.8165, GPU: 0.32GB
+Epoch 1/50 Batch 15000/21333 (15000/1066650 total) Loss: 0.5873, GPU: 0.32GB
+Epoch 1/50 Batch 15050/21333 (15050/1066650 total) Loss: 0.6775, GPU: 0.32GB
+Epoch 1/50 Batch 15100/21333 (15100/1066650 total) Loss: 0.6210, GPU: 0.32GB
+Epoch 1/50 Batch 15150/21333 (15150/1066650 total) Loss: 0.7088, GPU: 0.32GB
+Epoch 1/50 Batch 15200/21333 (15200/1066650 total) Loss: 0.7506, GPU: 0.32GB
+Epoch 1/50 Batch 15250/21333 (15250/1066650 total) Loss: 0.6026, GPU: 0.32GB
+Epoch 1/50 Batch 15300/21333 (15300/1066650 total) Loss: 0.7296, GPU: 0.32GB
+Epoch 1/50 Batch 15350/21333 (15350/1066650 total) Loss: 0.7623, GPU: 0.32GB
+Epoch 1/50 Batch 15400/21333 (15400/1066650 total) Loss: 0.6938, GPU: 0.32GB
+Epoch 1/50 Batch 15450/21333 (15450/1066650 total) Loss: 0.6775, GPU: 0.32GB
+Epoch 1/50 Batch 15500/21333 (15500/1066650 total) Loss: 0.7738, GPU: 0.32GB
+Epoch 1/50 Batch 15550/21333 (15550/1066650 total) Loss: 0.7235, GPU: 0.32GB
+Epoch 1/50 Batch 15600/21333 (15600/1066650 total) Loss: 0.6275, GPU: 0.32GB
+Epoch 1/50 Batch 15650/21333 (15650/1066650 total) Loss: 0.6742, GPU: 0.32GB
+Epoch 1/50 Batch 15700/21333 (15700/1066650 total) Loss: 0.6155, GPU: 0.32GB
+Epoch 1/50 Batch 15750/21333 (15750/1066650 total) Loss: 0.6691, GPU: 0.32GB
+Epoch 1/50 Batch 15800/21333 (15800/1066650 total) Loss: 0.6241, GPU: 0.32GB
+Epoch 1/50 Batch 15850/21333 (15850/1066650 total) Loss: 0.6707, GPU: 0.32GB
+Epoch 1/50 Batch 15900/21333 (15900/1066650 total) Loss: 0.4429, GPU: 0.32GB
+Epoch 1/50 Batch 15950/21333 (15950/1066650 total) Loss: 1.0886, GPU: 0.32GB
+Epoch 1/50 Batch 16000/21333 (16000/1066650 total) Loss: 0.7730, GPU: 0.32GB
+Epoch 1/50 Batch 16050/21333 (16050/1066650 total) Loss: 0.5203, GPU: 0.32GB
+Epoch 1/50 Batch 16100/21333 (16100/1066650 total) Loss: 0.6225, GPU: 0.32GB
+Epoch 1/50 Batch 16150/21333 (16150/1066650 total) Loss: 0.8134, GPU: 0.32GB
+Epoch 1/50 Batch 16200/21333 (16200/1066650 total) Loss: 0.6196, GPU: 0.32GB
+Epoch 1/50 Batch 16250/21333 (16250/1066650 total) Loss: 0.6304, GPU: 0.32GB
+Epoch 1/50 Batch 16300/21333 (16300/1066650 total) Loss: 0.6805, GPU: 0.32GB
+Epoch 1/50 Batch 16350/21333 (16350/1066650 total) Loss: 0.5899, GPU: 0.32GB
+Epoch 1/50 Batch 16400/21333 (16400/1066650 total) Loss: 0.5371, GPU: 0.32GB
+Epoch 1/50 Batch 16450/21333 (16450/1066650 total) Loss: 0.6948, GPU: 0.32GB
+Epoch 1/50 Batch 16500/21333 (16500/1066650 total) Loss: 0.7233, GPU: 0.32GB
+Epoch 1/50 Batch 16550/21333 (16550/1066650 total) Loss: 0.7593, GPU: 0.32GB
+Epoch 1/50 Batch 16600/21333 (16600/1066650 total) Loss: 1.0994, GPU: 0.32GB
+Epoch 1/50 Batch 16650/21333 (16650/1066650 total) Loss: 0.6157, GPU: 0.32GB
+Epoch 1/50 Batch 16700/21333 (16700/1066650 total) Loss: 0.9246, GPU: 0.32GB
+Epoch 1/50 Batch 16750/21333 (16750/1066650 total) Loss: 0.8249, GPU: 0.32GB
+Epoch 1/50 Batch 16800/21333 (16800/1066650 total) Loss: 0.6088, GPU: 0.32GB
+Epoch 1/50 Batch 16850/21333 (16850/1066650 total) Loss: 0.7672, GPU: 0.32GB
+Epoch 1/50 Batch 16900/21333 (16900/1066650 total) Loss: 0.9365, GPU: 0.32GB
+Epoch 1/50 Batch 16950/21333 (16950/1066650 total) Loss: 0.5627, GPU: 0.32GB
+Epoch 1/50 Batch 17000/21333 (17000/1066650 total) Loss: 0.6521, GPU: 0.32GB
+Epoch 1/50 Batch 17050/21333 (17050/1066650 total) Loss: 0.6079, GPU: 0.32GB
+Epoch 1/50 Batch 17100/21333 (17100/1066650 total) Loss: 0.7310, GPU: 0.32GB
+Epoch 1/50 Batch 17150/21333 (17150/1066650 total) Loss: 0.6044, GPU: 0.32GB
+Epoch 1/50 Batch 17200/21333 (17200/1066650 total) Loss: 0.7077, GPU: 0.32GB
+Epoch 1/50 Batch 17250/21333 (17250/1066650 total) Loss: 0.6649, GPU: 0.32GB
+Epoch 1/50 Batch 17300/21333 (17300/1066650 total) Loss: 0.6834, GPU: 0.32GB
+Epoch 1/50 Batch 17350/21333 (17350/1066650 total) Loss: 0.6916, GPU: 0.32GB
+Epoch 1/50 Batch 17400/21333 (17400/1066650 total) Loss: 0.7721, GPU: 0.32GB
+Epoch 1/50 Batch 17450/21333 (17450/1066650 total) Loss: 0.7137, GPU: 0.32GB
+Epoch 1/50 Batch 17500/21333 (17500/1066650 total) Loss: 0.7503, GPU: 0.32GB
+Epoch 1/50 Batch 17550/21333 (17550/1066650 total) Loss: 0.7947, GPU: 0.32GB
+Epoch 1/50 Batch 17600/21333 (17600/1066650 total) Loss: 0.6654, GPU: 0.32GB
+Epoch 1/50 Batch 17650/21333 (17650/1066650 total) Loss: 0.8498, GPU: 0.32GB
+Epoch 1/50 Batch 17700/21333 (17700/1066650 total) Loss: 0.8423, GPU: 0.32GB
+Epoch 1/50 Batch 17750/21333 (17750/1066650 total) Loss: 0.6988, GPU: 0.32GB
+Epoch 1/50 Batch 17800/21333 (17800/1066650 total) Loss: 0.8902, GPU: 0.32GB
+Epoch 1/50 Batch 17850/21333 (17850/1066650 total) Loss: 0.5376, GPU: 0.32GB
+Epoch 1/50 Batch 17900/21333 (17900/1066650 total) Loss: 0.7074, GPU: 0.32GB
+Epoch 1/50 Batch 17950/21333 (17950/1066650 total) Loss: 0.8117, GPU: 0.32GB
+Epoch 1/50 Batch 18000/21333 (18000/1066650 total) Loss: 0.7136, GPU: 0.32GB
+Epoch 1/50 Batch 18050/21333 (18050/1066650 total) Loss: 0.6679, GPU: 0.32GB
+Epoch 1/50 Batch 18100/21333 (18100/1066650 total) Loss: 0.8804, GPU: 0.32GB
+Epoch 1/50 Batch 18150/21333 (18150/1066650 total) Loss: 0.7342, GPU: 0.32GB
+Epoch 1/50 Batch 18200/21333 (18200/1066650 total) Loss: 0.6674, GPU: 0.32GB
+Epoch 1/50 Batch 18250/21333 (18250/1066650 total) Loss: 0.7101, GPU: 0.32GB
+Epoch 1/50 Batch 18300/21333 (18300/1066650 total) Loss: 0.5520, GPU: 0.32GB
+Epoch 1/50 Batch 18350/21333 (18350/1066650 total) Loss: 0.7267, GPU: 0.32GB
+Epoch 1/50 Batch 18400/21333 (18400/1066650 total) Loss: 0.6418, GPU: 0.32GB
+Epoch 1/50 Batch 18450/21333 (18450/1066650 total) Loss: 0.6755, GPU: 0.32GB
+Epoch 1/50 Batch 18500/21333 (18500/1066650 total) Loss: 0.7107, GPU: 0.32GB
+Epoch 1/50 Batch 18550/21333 (18550/1066650 total) Loss: 0.6556, GPU: 0.32GB
+Epoch 1/50 Batch 18600/21333 (18600/1066650 total) Loss: 0.6589, GPU: 0.32GB
+Epoch 1/50 Batch 18650/21333 (18650/1066650 total) Loss: 0.7494, GPU: 0.32GB
+Epoch 1/50 Batch 18700/21333 (18700/1066650 total) Loss: 0.8795, GPU: 0.32GB
+Epoch 1/50 Batch 18750/21333 (18750/1066650 total) Loss: 0.6154, GPU: 0.32GB
+Epoch 1/50 Batch 18800/21333 (18800/1066650 total) Loss: 0.7387, GPU: 0.32GB
+Epoch 1/50 Batch 18850/21333 (18850/1066650 total) Loss: 0.6404, GPU: 0.32GB
+Epoch 1/50 Batch 18900/21333 (18900/1066650 total) Loss: 0.5981, GPU: 0.32GB
+Epoch 1/50 Batch 18950/21333 (18950/1066650 total) Loss: 0.5948, GPU: 0.32GB
+Epoch 1/50 Batch 19000/21333 (19000/1066650 total) Loss: 0.6787, GPU: 0.32GB
+Epoch 1/50 Batch 19050/21333 (19050/1066650 total) Loss: 0.7339, GPU: 0.32GB
+Epoch 1/50 Batch 19100/21333 (19100/1066650 total) Loss: 0.6795, GPU: 0.32GB
+Epoch 1/50 Batch 19150/21333 (19150/1066650 total) Loss: 0.7394, GPU: 0.32GB
+Epoch 1/50 Batch 19200/21333 (19200/1066650 total) Loss: 0.7483, GPU: 0.32GB
+Epoch 1/50 Batch 19250/21333 (19250/1066650 total) Loss: 1.0128, GPU: 0.32GB
+Epoch 1/50 Batch 19300/21333 (19300/1066650 total) Loss: 0.6332, GPU: 0.32GB
+Epoch 1/50 Batch 19350/21333 (19350/1066650 total) Loss: 0.8414, GPU: 0.32GB
+Epoch 1/50 Batch 19400/21333 (19400/1066650 total) Loss: 0.7308, GPU: 0.32GB
+Epoch 1/50 Batch 19450/21333 (19450/1066650 total) Loss: 0.6321, GPU: 0.32GB
+Epoch 1/50 Batch 19500/21333 (19500/1066650 total) Loss: 0.6624, GPU: 0.32GB
+Epoch 1/50 Batch 19550/21333 (19550/1066650 total) Loss: 0.5916, GPU: 0.32GB
+Epoch 1/50 Batch 19600/21333 (19600/1066650 total) Loss: 0.6820, GPU: 0.32GB
+Epoch 1/50 Batch 19650/21333 (19650/1066650 total) Loss: 0.6482, GPU: 0.32GB
+Epoch 1/50 Batch 19700/21333 (19700/1066650 total) Loss: 0.6178, GPU: 0.32GB
+Epoch 1/50 Batch 19750/21333 (19750/1066650 total) Loss: 0.7127, GPU: 0.32GB
+Epoch 1/50 Batch 19800/21333 (19800/1066650 total) Loss: 0.6666, GPU: 0.32GB
+Epoch 1/50 Batch 19850/21333 (19850/1066650 total) Loss: 0.5732, GPU: 0.32GB
+Epoch 1/50 Batch 19900/21333 (19900/1066650 total) Loss: 0.5630, GPU: 0.32GB
+Epoch 1/50 Batch 19950/21333 (19950/1066650 total) Loss: 0.7356, GPU: 0.32GB
+Epoch 1/50 Batch 20000/21333 (20000/1066650 total) Loss: 0.6658, GPU: 0.32GB
+Epoch 1/50 Batch 20050/21333 (20050/1066650 total) Loss: 0.6876, GPU: 0.32GB
+Epoch 1/50 Batch 20100/21333 (20100/1066650 total) Loss: 0.6923, GPU: 0.32GB
+Epoch 1/50 Batch 20150/21333 (20150/1066650 total) Loss: 0.6907, GPU: 0.32GB
+Epoch 1/50 Batch 20200/21333 (20200/1066650 total) Loss: 0.6686, GPU: 0.32GB
+Epoch 1/50 Batch 20250/21333 (20250/1066650 total) Loss: 0.6905, GPU: 0.32GB
+Epoch 1/50 Batch 20300/21333 (20300/1066650 total) Loss: 0.6611, GPU: 0.32GB
+Epoch 1/50 Batch 20350/21333 (20350/1066650 total) Loss: 0.6936, GPU: 0.32GB
+Epoch 1/50 Batch 20400/21333 (20400/1066650 total) Loss: 0.7587, GPU: 0.32GB
+Epoch 1/50 Batch 20450/21333 (20450/1066650 total) Loss: 0.5980, GPU: 0.32GB
+Epoch 1/50 Batch 20500/21333 (20500/1066650 total) Loss: 0.6885, GPU: 0.32GB
+Epoch 1/50 Batch 20550/21333 (20550/1066650 total) Loss: 0.8733, GPU: 0.32GB
+Epoch 1/50 Batch 20600/21333 (20600/1066650 total) Loss: 0.7672, GPU: 0.32GB
+Epoch 1/50 Batch 20650/21333 (20650/1066650 total) Loss: 0.7946, GPU: 0.32GB
+Epoch 1/50 Batch 20700/21333 (20700/1066650 total) Loss: 0.7151, GPU: 0.32GB
+Epoch 1/50 Batch 20750/21333 (20750/1066650 total) Loss: 0.5531, GPU: 0.32GB
+Epoch 1/50 Batch 20800/21333 (20800/1066650 total) Loss: 0.7394, GPU: 0.32GB
+Epoch 1/50 Batch 20850/21333 (20850/1066650 total) Loss: 0.7557, GPU: 0.32GB
+Epoch 1/50 Batch 20900/21333 (20900/1066650 total) Loss: 0.7731, GPU: 0.32GB
+Epoch 1/50 Batch 20950/21333 (20950/1066650 total) Loss: 0.7063, GPU: 0.32GB
+Epoch 1/50 Batch 21000/21333 (21000/1066650 total) Loss: 0.6923, GPU: 0.32GB
+Epoch 1/50 Batch 21050/21333 (21050/1066650 total) Loss: 0.6516, GPU: 0.32GB
+Epoch 1/50 Batch 21100/21333 (21100/1066650 total) Loss: 0.8560, GPU: 0.32GB
+Epoch 1/50 Batch 21150/21333 (21150/1066650 total) Loss: 0.8138, GPU: 0.32GB
+Epoch 1/50 Batch 21200/21333 (21200/1066650 total) Loss: 0.7473, GPU: 0.32GB
+Epoch 1/50 Batch 21250/21333 (21250/1066650 total) Loss: 0.6994, GPU: 0.32GB
+Epoch 1/50 Batch 21300/21333 (21300/1066650 total) Loss: 0.7800, GPU: 0.32GB
+Error training variable_length: Target size (torch.Size([1])) must be the same as input size (torch.Size([]))
+
+============================================================
+Training enhanced model with fixed_length embeddings...
+============================================================
+Using columns: Protein A = 'uniprotID_A', Protein B = 'uniprotID_B', Interaction = 'isInteraction'
+Dataset: 85329 valid pairs out of 85329 total pairs
+Using columns: Protein A = 'uniprotID_A', Protein B = 'uniprotID_B', Interaction = 'isInteraction'
+Dataset: 21333 valid pairs out of 21333 total pairs
+📊 TRAINING STATISTICS:
+Training samples: 85,329
+Validation samples: 21,333
+Batch size: 4
+Training batches per epoch: 21333
+Validation batches per epoch: 5334
+Total epochs: 50
+Total training steps: 1,066,650
+Progress reports every 50 batches
+Checkpoints saved every 10 epochs
+GPU Memory before training: 0.02 GB
+Using 2 GPUs
+Training enhanced model with variable_length=False
+Model parameters: 20,226,433
+Best model will be saved to: models/ppi_v4_enhanced_best_20250602-040659.pth
+Checkpoints will be saved to: models/checkpoints_20250602-040659/

@@ -555,11 +555,11 @@ class ProteinInteractionClassifier(nn.Module):
     3. Enhanced MLP decoder with residual connections for binary classification
     """
     def __init__(self, 
-                 encoder_embed_dim=512,
-                 encoder_layers=16,  # Increased from 4 to 16 based on research
-                 encoder_heads=16,
+                 encoder_embed_dim=256,
+                 encoder_layers=8,  # Increased from 4 to 16 based on research
+                 encoder_heads=8,
                  use_variable_length=True,
-                 decoder_hidden_dims=[512, 256, 128],  # Research-recommended dimensions
+                 decoder_hidden_dims=[256, 128, 64],  # Research-recommended dimensions
                  dropout=0.2):
         super().__init__()
         
@@ -623,7 +623,7 @@ class ProteinInteractionClassifier(nn.Module):
 
 
 def train_model(train_data, val_data, embeddings_dict, 
-                epochs=50, batch_size=16, learning_rate=1e-4, 
+                epochs=30, batch_size=4, learning_rate=1e-4, 
                 use_variable_length=True,
                 save_every_epochs=10,  # Save checkpoint every N epochs
                 device='cuda' if torch.cuda.is_available() else 'cpu'):
@@ -640,16 +640,16 @@ def train_model(train_data, val_data, embeddings_dict,
         batch_size=batch_size, 
         shuffle=True, 
         collate_fn=collate_fn,
-        num_workers=2,
-        pin_memory=True
+        num_workers=2,        # ❌ CHANGE TO 0
+        pin_memory=True       # ❌ CHANGE TO False
     )
     val_loader = DataLoader(
         val_dataset, 
         batch_size=batch_size, 
         shuffle=False, 
         collate_fn=collate_fn,
-        num_workers=2,
-        pin_memory=True
+        num_workers=0,
+        pin_memory=False
     )
     
     # Calculate training statistics
@@ -668,12 +668,27 @@ def train_model(train_data, val_data, embeddings_dict,
     print(f"Progress reports every 50 batches")
     print(f"Checkpoints saved every {save_every_epochs} epochs")
     
+    # Clear GPU memory at start
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        print(f"GPU Memory before training: {torch.cuda.memory_allocated()/1024**3:.2f} GB")
+
     # Create enhanced model
     model = ProteinInteractionClassifier(
-        encoder_layers=16,  # Research-recommended depth
+        encoder_layers=8,                     # ✅ USE 8 instead of 16
+        encoder_embed_dim=256,                # ✅ ADD this parameter
+        encoder_heads=8,                      # ✅ ADD this parameter  
         use_variable_length=use_variable_length,
-        decoder_hidden_dims=[512, 256, 128]  # Research-recommended MLP architecture
+        decoder_hidden_dims=[256, 128, 64]   # ✅ USE smaller decoder
     ).to(device)
+
+    # Use multiple GPUs if available
+    if torch.cuda.device_count() > 1:
+        print(f"Using {torch.cuda.device_count()} GPUs")
+        model = nn.DataParallel(model)
+        # Increase batch size for multiple GPUs
+        if torch.cuda.device_count() >= 2:
+            batch_size = 8  # 4 per GPU
     
     # Optimizer with weight decay
     optimizer = torch.optim.AdamW(
@@ -744,10 +759,18 @@ def train_model(train_data, val_data, embeddings_dict,
                 train_probs.extend(probs.cpu().numpy())
                 train_labels.extend(interactions.cpu().numpy())
             
+            # Clear intermediate tensors
+            del emb_a, emb_b, lengths_a, lengths_b, interactions, logits, loss, probs, preds
+
             if batch_idx % 50 == 0:
                 progress = (epoch - 1) * num_train_batches + batch_idx
+                mem_info = f", GPU: {torch.cuda.memory_allocated()/1024**3:.2f}GB" if torch.cuda.is_available() else ""
                 print(f'Epoch {epoch}/{epochs} Batch {batch_idx}/{num_train_batches} '
-                      f'({progress}/{total_train_steps} total) Loss: {loss.item():.4f}')
+                      f'({progress}/{total_train_steps} total) Loss: {train_losses[-1]:.4f}{mem_info}')
+                
+                # Clear cache every 50 batches
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
         
         # Validation phase
         model.eval()
@@ -977,21 +1000,22 @@ def resume_training_from_checkpoint(checkpoint_path, train_data, val_data, embed
     train_dataset = ProteinPairDataset(train_data, embeddings_dict)
     val_dataset = ProteinPairDataset(val_data, embeddings_dict)
     
+    # REPLACE BOTH DataLoaders:
     train_loader = DataLoader(
         train_dataset, 
         batch_size=batch_size, 
         shuffle=True, 
         collate_fn=collate_fn,
-        num_workers=2,
-        pin_memory=True
+        num_workers=0,      # ✅ CHANGE TO 0
+        pin_memory=False    # ✅ CHANGE TO False
     )
     val_loader = DataLoader(
         val_dataset, 
         batch_size=batch_size, 
         shuffle=False, 
         collate_fn=collate_fn,
-        num_workers=2,
-        pin_memory=True
+        num_workers=0,      # ✅ ALREADY CORRECT
+        pin_memory=False    # ✅ ALREADY CORRECT
     )
     
     # Create model and load state
@@ -1216,7 +1240,7 @@ if __name__ == '__main__':
                     train_data, cv_data, protein_embeddings,
                     use_variable_length=config['use_variable_length'],
                     epochs=50,
-                    batch_size=16,
+                    batch_size=4,
                     learning_rate=1e-4,
                     save_every_epochs=10  # Save checkpoints every 10 epochs
                 )
