@@ -36,6 +36,23 @@ def get_gpu_memory_info():
     return ", ".join(gpu_info)
 
 
+def fix_dataparallel_state_dict(state_dict):
+    """
+    Fix state_dict from DataParallel models by removing 'module.' prefix
+    """
+    if any(key.startswith('module.') for key in state_dict.keys()):
+        print("🔧 Detected DataParallel checkpoint, removing 'module.' prefix...")
+        new_state_dict = {}
+        for key, value in state_dict.items():
+            if key.startswith('module.'):
+                new_key = key[7:]  # Remove 'module.' prefix
+                new_state_dict[new_key] = value
+            else:
+                new_state_dict[key] = value
+        return new_state_dict
+    return state_dict
+
+
 # First, let's examine the data structure to identify column names
 def examine_dataframe(df):
     """Print the structure of the dataframe to identify column names"""
@@ -111,11 +128,27 @@ def load_data():
     protein_embeddings = pickle.load(open(embeddings_path, 'rb'))
     print(f"🔥 Embeddings loaded! Count: {len(protein_embeddings)}", flush=True)
 
-    print(train_data.head())
+    print("🔥 ABOUT TO PRINT TRAIN_DATA.HEAD()...", flush=True)
+    sys.stdout.flush()
+    
+    # Replace the slow head() with faster basic info
+    print(f"Training data shape: {train_data.shape}")
+    print(f"Sample row keys: {list(train_data.columns)}")
+    if len(train_data) > 0:
+        print(f"First protein A: {train_data.iloc[0]['uniprotID_A']}")
+        print(f"First protein B: {train_data.iloc[0]['uniprotID_B']}")
+        print(f"First interaction: {train_data.iloc[0]['isInteraction']}")
+    
+    print("🔥 ABOUT TO LOOP THROUGH PROTEIN EMBEDDINGS...", flush=True)
+    sys.stdout.flush()
+    
     for i, (key, value) in enumerate(protein_embeddings.items()):
         if i >= 5:
             break
         print(f"Protein ID: {key}, Embedding shape: {value.shape}")
+    
+    print("🔥 RETURNING FROM LOAD_DATA FUNCTION...", flush=True)
+    sys.stdout.flush()
     
     return train_data, cv_data, test1_data, test2_data, protein_embeddings
 
@@ -982,7 +1015,7 @@ def evaluate_model(model_path, test_data, embeddings_dict, device='cuda' if torc
     Evaluate the trained enhanced model on test data
     """
     # Load model
-    checkpoint = torch.load(model_path, map_location=device)
+    checkpoint = torch.load(model_path, map_location=device, weights_only=False)
     config = checkpoint['config']
     
     model = ProteinInteractionClassifier(
@@ -990,7 +1023,10 @@ def evaluate_model(model_path, test_data, embeddings_dict, device='cuda' if torc
         use_variable_length=config.get('use_variable_length', True),
         decoder_hidden_dims=[512, 256, 128]
     ).to(device)
-    model.load_state_dict(checkpoint['model_state_dict'])
+    
+    # Fix DataParallel state_dict if needed
+    model_state_dict = fix_dataparallel_state_dict(checkpoint['model_state_dict'])
+    model.load_state_dict(model_state_dict)
     model.eval()
     
     # Create test dataset and loader
@@ -1068,7 +1104,7 @@ def resume_training_from_checkpoint(checkpoint_path, train_data, val_data, embed
     print(f"Checkpoint: {checkpoint_path}")
     
     # Load checkpoint
-    checkpoint = torch.load(checkpoint_path, map_location=device)
+    checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
     config = checkpoint['config']
     start_epoch = checkpoint['epoch'] + 1
     
@@ -1104,7 +1140,10 @@ def resume_training_from_checkpoint(checkpoint_path, train_data, val_data, embed
         use_variable_length=config.get('use_variable_length', True),
         decoder_hidden_dims=[512, 256, 128]
     ).to(device)
-    model.load_state_dict(checkpoint['model_state_dict'])
+    
+    # Fix DataParallel state_dict if needed
+    model_state_dict = fix_dataparallel_state_dict(checkpoint['model_state_dict'])
+    model.load_state_dict(model_state_dict)
     
     # Create optimizer and scheduler, load states
     optimizer = torch.optim.AdamW(
@@ -1301,12 +1340,18 @@ if __name__ == '__main__':
         # Load data using the new function
         train_data, cv_data, test1_data, test2_data, protein_embeddings = load_data()
         
+        print("🔥 DATA LOADING COMPLETED SUCCESSFULLY!", flush=True)
+        sys.stdout.flush()
+        
         print(f"\nData loaded successfully:")
         print(f"Training data: {len(train_data)} pairs")
         print(f"Validation data: {len(cv_data)} pairs") 
         print(f"Test1 data: {len(test1_data)} pairs")
         print(f"Test2 data: {len(test2_data)} pairs")
         print(f"Protein embeddings: {len(protein_embeddings)} proteins")
+        
+        print("🔥 ABOUT TO CHECK FOR CHECKPOINTS...", flush=True)
+        sys.stdout.flush()
         
         # ✅ ADD AUTOMATIC CHECKPOINT DETECTION
         print("🔍 Checking for existing checkpoints to resume...")
@@ -1336,7 +1381,7 @@ if __name__ == '__main__':
                 print(f"📁 Found latest checkpoint: {latest_checkpoint}")
                 
                 # Check if we should resume
-                checkpoint = torch.load(latest_checkpoint, map_location='cpu')
+                checkpoint = torch.load(latest_checkpoint, map_location='cpu', weights_only=False)
                 completed_epochs = checkpoint['epoch']
                 val_auc = checkpoint.get('val_auc', 0)
                 
@@ -1350,7 +1395,7 @@ if __name__ == '__main__':
                     history, model_path = resume_training_from_checkpoint(
                         latest_checkpoint, train_data, cv_data, protein_embeddings,
                         additional_epochs=remaining_epochs,
-                        batch_size=4,
+                        batch_size=8,  # ✅ INCREASED FROM 4 to 8 for 4 GPUs
                         learning_rate=3e-4,
                         save_every_epochs=1
                     )
@@ -1385,13 +1430,13 @@ if __name__ == '__main__':
                     train_data, cv_data, protein_embeddings,
                     use_variable_length=config['use_variable_length'],
                     epochs=50,
-                    batch_size=4,
+                    batch_size=8,  # ✅ INCREASED FROM 4 to 8 for 4 GPUs (2 per GPU)
                     learning_rate=3e-4,  # ✅ INCREASED FROM 1e-4 to 3e-4
                     save_every_epochs=1  # Save checkpoints every 1 epochs
                 )
                 
                 # Load the best model and get its validation AUC
-                checkpoint = torch.load(model_path, map_location='cpu')
+                checkpoint = torch.load(model_path, map_location='cpu', weights_only=False)
                 best_auc = checkpoint['val_auc']
                 
                 best_models[config_name] = {

@@ -1,19 +1,19 @@
 #!/bin/bash
 #SBATCH -J 2080GPUESM-3/2080.slurm
-#SBATCH -p CS182
+#SBATCH -p normal
 #SBATCH -N 1
 #SBATCH -t 2-00:00:00
-#SBATCH --mem=64G          # Request 64GB RAM
+#SBATCH --mem=128G          # Request 128GB RAM (increased from 64GB)
 #SBATCH --cpus-per-task=8  # Request 8 CPUs
 #SBATCH --output=%j.out
 #SBATCH --error=%j.err
 #SBATCH --mail-type=ALL
-#SBATCH --gres=gpu:NVIDIAGeForceRTX2080Ti:2
+#SBATCH --gres=gpu:NVIDIAGeForceRTX2080Ti:4  # Request 4 GPUs (increased from 2)
 #SBATCH --mail-user=2162352828@qq.com
 # sleep 9999999
 source ~/.bashrc
 conda activate esm
-cd /public/home/CS182/wangar2023-cs182/CS182-Final-Project/ || { echo "目录不存在"; exit 1; }
+cd /public/home/wangar2023/CS182-Final-Project/ || { echo "目录不存在"; exit 1; }
 
 # ✅ ADD GPU DIAGNOSTICS
 echo "=== GPU DIAGNOSTICS ==="

@@ -1,0 +1,146 @@
+=== GPU DIAGNOSTICS ===
+Mon Jun  2 18:48:22 2025       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 550.54.15              Driver Version: 550.54.15      CUDA Version: 12.4     |
+|-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA GeForce RTX 2080 Ti     On  |   00000000:04:00.0 Off |                  N/A |
+| 27%   32C    P8             29W /  250W |    2988MiB /  11264MiB |      0%      Default |
+|                                         |                        |                  N/A |
++-----------------------------------------+------------------------+----------------------+
+|   1  NVIDIA GeForce RTX 2080 Ti     On  |   00000000:05:00.0 Off |                  N/A |
+| 27%   29C    P8             14W /  250W |    3106MiB /  11264MiB |      0%      Default |
+|                                         |                        |                  N/A |
++-----------------------------------------+------------------------+----------------------+
+|   2  NVIDIA GeForce RTX 2080 Ti     On  |   00000000:08:00.0 Off |                  N/A |
+| 26%   28C    P8             16W /  250W |    3158MiB /  11264MiB |      0%      Default |
+|                                         |                        |                  N/A |
++-----------------------------------------+------------------------+----------------------+
+|   3  NVIDIA GeForce RTX 2080 Ti     On  |   00000000:09:00.0 Off |                  N/A |
+| 25%   28C    P8             20W /  250W |    3158MiB /  11264MiB |      0%      Default |
+|                                         |                        |                  N/A |
++-----------------------------------------+------------------------+----------------------+
+                                                                                         
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI        PID   Type   Process name                              GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|    3   N/A  N/A     22148      C   python3                                      3154MiB |
++-----------------------------------------------------------------------------------------+
+
+=== CUDA VISIBLE DEVICES ===
+CUDA_VISIBLE_DEVICES: 0,1,2,3
+
+=== PYTORCH GPU CHECK ===
+CUDA available: True
+CUDA version: 12.4
+GPU count: 4
+GPU 0: NVIDIA GeForce RTX 2080 Ti
+  - Memory test: OK
+GPU 1: NVIDIA GeForce RTX 2080 Ti
+  - Memory test: OK
+GPU 2: NVIDIA GeForce RTX 2080 Ti
+  - Memory test: OK
+GPU 3: NVIDIA GeForce RTX 2080 Ti
+  - Memory test: OK
+
+=== STARTING TRAINING ===
+🔥 SCRIPT STARTED - Python v4.py is running!
+Enhanced Protein-Protein Interaction Prediction v4
+============================================================
+Features: RoPE encoding, 16-layer transformers, cross-attention, enhanced MLP
+============================================================
+🔥 ABOUT TO LOAD DATA...
+🔥 Inside load_data function
+🔥 Current directory: /public/home/wangar2023/CS182-Final-Project/src/mask_autoencoder
+Script directory: /public/home/wangar2023/CS182-Final-Project/src/mask_autoencoder
+Project root: /public/home/wangar2023/CS182-Final-Project
+Loading data...
+Looking for data in: /public/home/wangar2023/CS182-Final-Project/data/full_dataset
+🔥 Checking file existence...
+✅ Found: train_data.pkl
+✅ Found: validation_data.pkl
+✅ Found: test1_data.pkl
+✅ Found: test2_data.pkl
+✅ Found: embeddings_standardized.pkl
+🔥 Loading pickle files...
+🔥 Loading train_data.pkl...
+🔥 Loading validation_data.pkl...
+🔥 Loading test1_data.pkl...
+🔥 Loading test2_data.pkl...
+
+Examining training data structure:
+DataFrame columns: ['uniprotID_A', 'uniprotID_B', 'isInteraction', 'trainTest', 'sequence_A', 'sequence_B']
+First row sample: {'uniprotID_A': 'O43759', 'uniprotID_B': 'P59991', 'isInteraction': 0, 'trainTest': 'train', 'sequence_A': 'MEGGAYGAGKAGGAFDPYTLVRQPHTILRVVSWLFSIVVFGSIVNEGYLNSASEGEEFCIYNRNPNACSYGVAVGVLAFLTCLLYLALDVYFPQISSVKDRKKAVLSDIGVSAFWAFLWFVGFCYLANQWQVSKPKDNPLNEGTDAARAAIAFSFFSIFTWAGQAVLAFQRYQIGADSALFSQDYMDPSQDSSMPYAPYVEPTGPDPAGMGGTYQQPANTFDTEPQGYQSQGY', 'sequence_B': 'MCHTSCSSGCQPACCAPSPCQPACCVPSSCQASCCVPVGCQSSVCVPVSFKPAVCLPVSCQSSVCVPMSFKSAVCVPVSCQSSVCVPVSCRPIVCAAPSCQSSLCVPVSCRPVVYAAPSCQSSGCCQPSCTSVLCRPISYSISSCC'}
+
+Loading protein embeddings...
+🔥 Loading embeddings_standardized.pkl (this might take a while)...
+🔥 Embeddings loaded! Count: 12026
+🔥 ABOUT TO PRINT TRAIN_DATA.HEAD()...
+Training data shape: (85329, 6)
+Sample row keys: ['uniprotID_A', 'uniprotID_B', 'isInteraction', 'trainTest', 'sequence_A', 'sequence_B']
+First protein A: O43759
+First protein B: P59991
+First interaction: 0
+🔥 ABOUT TO LOOP THROUGH PROTEIN EMBEDDINGS...
+Protein ID: Q00994, Embedding shape: (113, 960)
+Protein ID: Q8TC90, Embedding shape: (408, 960)
+Protein ID: Q9UJY1, Embedding shape: (198, 960)
+Protein ID: Q9Y6Q6, Embedding shape: (618, 960)
+Protein ID: A4QMS7, Embedding shape: (149, 960)
+🔥 RETURNING FROM LOAD_DATA FUNCTION...
+🔥 DATA LOADING COMPLETED SUCCESSFULLY!
+
+Data loaded successfully:
+Training data: 85329 pairs
+Validation data: 21333 pairs
+Test1 data: 24898 pairs
+Test2 data: 136939 pairs
+Protein embeddings: 12026 proteins
+🔥 ABOUT TO CHECK FOR CHECKPOINTS...
+🔍 Checking for existing checkpoints to resume...
+📁 Found latest checkpoint: models/checkpoints_20250602-172922/checkpoint_epoch_001.pth
+Checkpoint info: Epoch 1, Val AUC: 0.5042
+🔄 Auto-resuming training from epoch 1...
+🔄 RESUMING TRAINING FROM CHECKPOINT
+Checkpoint: models/checkpoints_20250602-172922/checkpoint_epoch_001.pth
+Previous training stopped at epoch 1
+Resuming from epoch 2
+Will train for 49 more epochs (until epoch 50)
+Using columns: Protein A = 'uniprotID_A', Protein B = 'uniprotID_B', Interaction = 'isInteraction'
+Dataset: 85329 valid pairs out of 85329 total pairs
+Using columns: Protein A = 'uniprotID_A', Protein B = 'uniprotID_B', Interaction = 'isInteraction'
+Dataset: 21333 valid pairs out of 21333 total pairs
+🔧 Detected DataParallel checkpoint, removing 'module.' prefix...
+Error in main execution: Error(s) in loading state_dict for ProteinInteractionClassifier:
+	Missing key(s) in state_dict: "protein_encoder.layers.8.self_attn.in_proj_weight", "protein_encoder.layers.8.self_attn.in_proj_bias", "protein_encoder.layers.8.self_attn.out_proj.weight", "protein_encoder.layers.8.self_attn.out_proj.bias", "protein_encoder.layers.8.ffn.0.weight", "protein_encoder.layers.8.ffn.0.bias", "protein_encoder.layers.8.ffn.3.weight", "protein_encoder.layers.8.ffn.3.bias", "protein_encoder.layers.8.norm1.weight", "protein_encoder.layers.8.norm1.bias", "protein_encoder.layers.8.norm2.weight", "protein_encoder.layers.8.norm2.bias", "protein_encoder.layers.9.self_attn.in_proj_weight", "protein_encoder.layers.9.self_attn.in_proj_bias", "protein_encoder.layers.9.self_attn.out_proj.weight", "protein_encoder.layers.9.self_attn.out_proj.bias", "protein_encoder.layers.9.ffn.0.weight", "protein_encoder.layers.9.ffn.0.bias", "protein_encoder.layers.9.ffn.3.weight", "protein_encoder.layers.9.ffn.3.bias", "protein_encoder.layers.9.norm1.weight", "protein_encoder.layers.9.norm1.bias", "protein_encoder.layers.9.norm2.weight", "protein_encoder.layers.9.norm2.bias", "protein_encoder.layers.10.self_attn.in_proj_weight", "protein_encoder.layers.10.self_attn.in_proj_bias", "protein_encoder.layers.10.self_attn.out_proj.weight", "protein_encoder.layers.10.self_attn.out_proj.bias", "protein_encoder.layers.10.ffn.0.weight", "protein_encoder.layers.10.ffn.0.bias", "protein_encoder.layers.10.ffn.3.weight", "protein_encoder.layers.10.ffn.3.bias", "protein_encoder.layers.10.norm1.weight", "protein_encoder.layers.10.norm1.bias", "protein_encoder.layers.10.norm2.weight", "protein_encoder.layers.10.norm2.bias", "protein_encoder.layers.11.self_attn.in_proj_weight", "protein_encoder.layers.11.self_attn.in_proj_bias", "protein_encoder.layers.11.self_attn.out_proj.weight", "protein_encoder.layers.11.self_attn.out_proj.bias", "protein_encoder.layers.11.ffn.0.weight", "protein_encoder.layers.11.ffn.0.bias", "protein_encoder.layers.11.ffn.3.weight", "protein_encoder.layers.11.ffn.3.bias", "protein_encoder.layers.11.norm1.weight", "protein_encoder.layers.11.norm1.bias", "protein_encoder.layers.11.norm2.weight", "protein_encoder.layers.11.norm2.bias", "protein_encoder.layers.12.self_attn.in_proj_weight", "protein_encoder.layers.12.self_attn.in_proj_bias", "protein_encoder.layers.12.self_attn.out_proj.weight", "protein_encoder.layers.12.self_attn.out_proj.bias", "protein_encoder.layers.12.ffn.0.weight", "protein_encoder.layers.12.ffn.0.bias", "protein_encoder.layers.12.ffn.3.weight", "protein_encoder.layers.12.ffn.3.bias", "protein_encoder.layers.12.norm1.weight", "protein_encoder.layers.12.norm1.bias", "protein_encoder.layers.12.norm2.weight", "protein_encoder.layers.12.norm2.bias", "protein_encoder.layers.13.self_attn.in_proj_weight", "protein_encoder.layers.13.self_attn.in_proj_bias", "protein_encoder.layers.13.self_attn.out_proj.weight", "protein_encoder.layers.13.self_attn.out_proj.bias", "protein_encoder.layers.13.ffn.0.weight", "protein_encoder.layers.13.ffn.0.bias", "protein_encoder.layers.13.ffn.3.weight", "protein_encoder.layers.13.ffn.3.bias", "protein_encoder.layers.13.norm1.weight", "protein_encoder.layers.13.norm1.bias", "protein_encoder.layers.13.norm2.weight", "protein_encoder.layers.13.norm2.bias", "protein_encoder.layers.14.self_attn.in_proj_weight", "protein_encoder.layers.14.self_attn.in_proj_bias", "protein_encoder.layers.14.self_attn.out_proj.weight", "protein_encoder.layers.14.self_attn.out_proj.bias", "protein_encoder.layers.14.ffn.0.weight", "protein_encoder.layers.14.ffn.0.bias", "protein_encoder.layers.14.ffn.3.weight", "protein_encoder.layers.14.ffn.3.bias", "protein_encoder.layers.14.norm1.weight", "protein_encoder.layers.14.norm1.bias", "protein_encoder.layers.14.norm2.weight", "protein_encoder.layers.14.norm2.bias", "protein_encoder.layers.15.self_attn.in_proj_weight", "protein_encoder.layers.15.self_attn.in_proj_bias", "protein_encoder.layers.15.self_attn.out_proj.weight", "protein_encoder.layers.15.self_attn.out_proj.bias", "protein_encoder.layers.15.ffn.0.weight", "protein_encoder.layers.15.ffn.0.bias", "protein_encoder.layers.15.ffn.3.weight", "protein_encoder.layers.15.ffn.3.bias", "protein_encoder.layers.15.norm1.weight", "protein_encoder.layers.15.norm1.bias", "protein_encoder.layers.15.norm2.weight", "protein_encoder.layers.15.norm2.bias". 
+	size mismatch for decoder.layers.0.linear.weight: copying a param with shape torch.Size([256, 960]) from checkpoint, the shape in current model is torch.Size([512, 960]).
+	size mismatch for decoder.layers.0.linear.bias: copying a param with shape torch.Size([256]) from checkpoint, the shape in current model is torch.Size([512]).
+	size mismatch for decoder.layers.0.norm.weight: copying a param with shape torch.Size([256]) from checkpoint, the shape in current model is torch.Size([512]).
+	size mismatch for decoder.layers.0.norm.bias: copying a param with shape torch.Size([256]) from checkpoint, the shape in current model is torch.Size([512]).
+	size mismatch for decoder.layers.0.residual.weight: copying a param with shape torch.Size([256, 960]) from checkpoint, the shape in current model is torch.Size([512, 960]).
+	size mismatch for decoder.layers.0.residual.bias: copying a param with shape torch.Size([256]) from checkpoint, the shape in current model is torch.Size([512]).
+	size mismatch for decoder.layers.1.linear.weight: copying a param with shape torch.Size([128, 256]) from checkpoint, the shape in current model is torch.Size([256, 512]).
+	size mismatch for decoder.layers.1.linear.bias: copying a param with shape torch.Size([128]) from checkpoint, the shape in current model is torch.Size([256]).
+	size mismatch for decoder.layers.1.norm.weight: copying a param with shape torch.Size([128]) from checkpoint, the shape in current model is torch.Size([256]).
+	size mismatch for decoder.layers.1.norm.bias: copying a param with shape torch.Size([128]) from checkpoint, the shape in current model is torch.Size([256]).
+	size mismatch for decoder.layers.1.residual.weight: copying a param with shape torch.Size([128, 256]) from checkpoint, the shape in current model is torch.Size([256, 512]).
+	size mismatch for decoder.layers.1.residual.bias: copying a param with shape torch.Size([128]) from checkpoint, the shape in current model is torch.Size([256]).
+	size mismatch for decoder.layers.2.linear.weight: copying a param with shape torch.Size([64, 128]) from checkpoint, the shape in current model is torch.Size([128, 256]).
+	size mismatch for decoder.layers.2.linear.bias: copying a param with shape torch.Size([64]) from checkpoint, the shape in current model is torch.Size([128]).
+	size mismatch for decoder.layers.2.norm.weight: copying a param with shape torch.Size([64]) from checkpoint, the shape in current model is torch.Size([128]).
+	size mismatch for decoder.layers.2.norm.bias: copying a param with shape torch.Size([64]) from checkpoint, the shape in current model is torch.Size([128]).
+	size mismatch for decoder.layers.2.residual.weight: copying a param with shape torch.Size([64, 128]) from checkpoint, the shape in current model is torch.Size([128, 256]).
+	size mismatch for decoder.layers.2.residual.bias: copying a param with shape torch.Size([64]) from checkpoint, the shape in current model is torch.Size([128]).
+	size mismatch for decoder.final_layer.weight: copying a param with shape torch.Size([1, 64]) from checkpoint, the shape in current model is torch.Size([1, 128]).
+
+Please ensure your data files are in the correct location:
+- data/full_dataset/train_data.pkl
+- data/full_dataset/validation_data.pkl
+- data/full_dataset/test1_data.pkl
+- data/full_dataset/test2_data.pkl
+- data/full_dataset/embeddings/embeddings_standardized.pkl
