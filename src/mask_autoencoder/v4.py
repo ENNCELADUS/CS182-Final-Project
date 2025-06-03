@@ -15,42 +15,6 @@ import pickle
 from tqdm import tqdm
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
 import math
-import sys
-
-
-# ✅ ADD GPU MONITORING FUNCTION
-def get_gpu_memory_info():
-    """Get GPU memory usage for all available GPUs"""
-    if not torch.cuda.is_available():
-        return "No CUDA available"
-    
-    gpu_info = []
-    for i in range(torch.cuda.device_count()):
-        try:
-            memory_allocated = torch.cuda.memory_allocated(i) / 1024**3
-            memory_reserved = torch.cuda.memory_reserved(i) / 1024**3
-            gpu_info.append(f"GPU{i}: {memory_allocated:.2f}GB/{memory_reserved:.2f}GB")
-        except:
-            gpu_info.append(f"GPU{i}: Error")
-    
-    return ", ".join(gpu_info)
-
-
-def fix_dataparallel_state_dict(state_dict):
-    """
-    Fix state_dict from DataParallel models by removing 'module.' prefix
-    """
-    if any(key.startswith('module.') for key in state_dict.keys()):
-        print("🔧 Detected DataParallel checkpoint, removing 'module.' prefix...")
-        new_state_dict = {}
-        for key, value in state_dict.items():
-            if key.startswith('module.'):
-                new_key = key[7:]  # Remove 'module.' prefix
-                new_state_dict[new_key] = value
-            else:
-                new_state_dict[key] = value
-        return new_state_dict
-    return state_dict
 
 
 # First, let's examine the data structure to identify column names
@@ -63,11 +27,8 @@ def examine_dataframe(df):
 
 def load_data():
     """Load the actual data from the project structure"""
-    print("🔥 Inside load_data function", flush=True)
-    
     # Get the current script directory
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    print(f"🔥 Current directory: {current_dir}", flush=True)
     
     # Navigate to the project root (CS182-Final-Project)
     # From src/mask_autoencoder/ go up two levels to reach project root
@@ -94,8 +55,6 @@ def load_data():
     test2_path = os.path.join(data_dir, 'test2_data.pkl')
     embeddings_path = os.path.join(embeddings_dir, 'embeddings_standardized.pkl')
     
-    print("🔥 Checking file existence...", flush=True)
-    
     # Check if all files exist
     for path, name in [(train_path, 'train_data.pkl'), 
                        (cv_path, 'validation_data.pkl'),
@@ -107,16 +66,10 @@ def load_data():
         else:
             print(f"✅ Found: {name}")
     
-    print("🔥 Loading pickle files...", flush=True)
-    
     # Load the data
-    print("🔥 Loading train_data.pkl...", flush=True)
     train_data = pickle.load(open(train_path, 'rb'))
-    print("🔥 Loading validation_data.pkl...", flush=True)
     cv_data = pickle.load(open(cv_path, 'rb'))
-    print("🔥 Loading test1_data.pkl...", flush=True)
     test1_data = pickle.load(open(test1_path, 'rb'))
-    print("🔥 Loading test2_data.pkl...", flush=True)
     test2_data = pickle.load(open(test2_path, 'rb'))
 
     # Examine structure of the first dataframe to understand its format
@@ -124,31 +77,14 @@ def load_data():
     examine_dataframe(train_data)
 
     print("\nLoading protein embeddings...")
-    print("🔥 Loading embeddings_standardized.pkl (this might take a while)...", flush=True)
     protein_embeddings = pickle.load(open(embeddings_path, 'rb'))
-    print(f"🔥 Embeddings loaded! Count: {len(protein_embeddings)}", flush=True)
+    print(f"Loaded {len(protein_embeddings)} protein embeddings")
 
-    print("🔥 ABOUT TO PRINT TRAIN_DATA.HEAD()...", flush=True)
-    sys.stdout.flush()
-    
-    # Replace the slow head() with faster basic info
-    print(f"Training data shape: {train_data.shape}")
-    print(f"Sample row keys: {list(train_data.columns)}")
-    if len(train_data) > 0:
-        print(f"First protein A: {train_data.iloc[0]['uniprotID_A']}")
-        print(f"First protein B: {train_data.iloc[0]['uniprotID_B']}")
-        print(f"First interaction: {train_data.iloc[0]['isInteraction']}")
-    
-    print("🔥 ABOUT TO LOOP THROUGH PROTEIN EMBEDDINGS...", flush=True)
-    sys.stdout.flush()
-    
+    print(train_data.head())
     for i, (key, value) in enumerate(protein_embeddings.items()):
         if i >= 5:
             break
         print(f"Protein ID: {key}, Embedding shape: {value.shape}")
-    
-    print("🔥 RETURNING FROM LOAD_DATA FUNCTION...", flush=True)
-    sys.stdout.flush()
     
     return train_data, cv_data, test1_data, test2_data, protein_embeddings
 
@@ -221,21 +157,15 @@ class ProteinPairDataset(Dataset):
             self.interaction_col = interaction_col
         
         # Filter valid pairs
-        print(f"🔥 Dataset filtering: Processing {len(self.pairs_df)} pairs...", flush=True)
-        sys.stdout.flush()
+        valid_indices = []
+        for idx in range(len(self.pairs_df)):
+            row = self.pairs_df.iloc[idx]
+            if (row[self.protein_a_col] in self.embeddings_dict and 
+                row[self.protein_b_col] in self.embeddings_dict):
+                valid_indices.append(idx)
         
-        # ✅ OPTIMIZED FILTERING - Use pandas operations instead of slow loop
-        embedding_keys = set(self.embeddings_dict.keys())
-        
-        # Use pandas isin() for fast filtering - much faster than iterating
-        valid_a = self.pairs_df[self.protein_a_col].isin(embedding_keys)
-        valid_b = self.pairs_df[self.protein_b_col].isin(embedding_keys)
-        valid_mask = valid_a & valid_b
-        
-        self.valid_indices = valid_mask[valid_mask].index.tolist()
-        
-        print(f"Dataset: {len(self.valid_indices)} valid pairs out of {len(self.pairs_df)} total pairs", flush=True)
-        sys.stdout.flush()
+        self.valid_indices = valid_indices
+        print(f"Dataset: {len(valid_indices)} valid pairs out of {len(self.pairs_df)} total pairs")
     
     def __len__(self):
         return len(self.valid_indices)
@@ -625,11 +555,11 @@ class ProteinInteractionClassifier(nn.Module):
     3. Enhanced MLP decoder with residual connections for binary classification
     """
     def __init__(self, 
-                 encoder_embed_dim=256,
-                 encoder_layers=8,  # Increased from 4 to 16 based on research
-                 encoder_heads=8,
+                 encoder_embed_dim=512,
+                 encoder_layers=16,  # Increased from 4 to 16 based on research
+                 encoder_heads=16,
                  use_variable_length=True,
-                 decoder_hidden_dims=[256, 128, 64],  # Research-recommended dimensions
+                 decoder_hidden_dims=[512, 256, 128],  # Research-recommended dimensions
                  dropout=0.2):
         super().__init__()
         
@@ -693,58 +623,36 @@ class ProteinInteractionClassifier(nn.Module):
 
 
 def train_model(train_data, val_data, embeddings_dict, 
-                epochs=3, batch_size=16, learning_rate=3e-4,  # ✅ INCREASED from 2 to 16
+                epochs=50, batch_size=16, learning_rate=1e-4, 
                 use_variable_length=True,
-                save_every_epochs=1,  # Save checkpoint every N epochs
+                save_every_epochs=10,  # Save checkpoint every N epochs
                 device='cuda' if torch.cuda.is_available() else 'cpu'):
     """
     Train the enhanced protein interaction prediction model
     """
-    print(f"🔥 INSIDE train_model() - START", flush=True)
-    print(f"🔥 Parameters: epochs={epochs}, batch_size={batch_size}, variable_length={use_variable_length}", flush=True)
-    sys.stdout.flush()
-    
     # Create datasets
-    print(f"🔥 Creating ProteinPairDataset for training...", flush=True)
-    sys.stdout.flush()
     train_dataset = ProteinPairDataset(train_data, embeddings_dict)
-    
-    print(f"🔥 Creating ProteinPairDataset for validation...", flush=True)
-    sys.stdout.flush()
     val_dataset = ProteinPairDataset(val_data, embeddings_dict)
-
-    # Create data loaders
-    print(f"🔥 Creating DataLoader for training dataset ({len(train_dataset)} samples)...", flush=True)
-    sys.stdout.flush()
     
+    # Create data loaders
     train_loader = DataLoader(
         train_dataset, 
         batch_size=batch_size, 
         shuffle=True, 
         collate_fn=collate_fn,
-        num_workers=0,        # ✅ CHANGED TO 0
-        pin_memory=False      # ✅ CHANGED TO False
+        num_workers=2,
+        pin_memory=True
     )
-    
-    print(f"🔥 Creating DataLoader for validation dataset ({len(val_dataset)} samples)...", flush=True)
-    sys.stdout.flush()
-    
     val_loader = DataLoader(
         val_dataset, 
         batch_size=batch_size, 
         shuffle=False, 
         collate_fn=collate_fn,
-        num_workers=0,
-        pin_memory=False
+        num_workers=2,
+        pin_memory=True
     )
     
-    print(f"🔥 DataLoaders created successfully!", flush=True)
-    sys.stdout.flush()
-    
     # Calculate training statistics
-    print(f"🔥 Calculating training statistics...", flush=True)
-    sys.stdout.flush()
-    
     num_train_batches = len(train_loader)
     num_val_batches = len(val_loader)
     total_train_steps = num_train_batches * epochs
@@ -757,104 +665,15 @@ def train_model(train_data, val_data, embeddings_dict,
     print(f"Validation batches per epoch: {num_val_batches}")
     print(f"Total epochs: {epochs}")
     print(f"Total training steps: {total_train_steps:,}")
-    print(f"Progress reports every 10 batches")
+    print(f"Progress reports every 50 batches")
     print(f"Checkpoints saved every {save_every_epochs} epochs")
-    
-    print(f"🔥 Starting GPU detection...", flush=True)
-    sys.stdout.flush()
-    
-    # ✅ OPTIMIZED GPU DETECTION - Faster and more robust
-    if torch.cuda.is_available():
-        print(f"🔥 CUDA available, clearing cache...", flush=True)
-        sys.stdout.flush()
-        torch.cuda.empty_cache()
-        
-        # Quick GPU count check
-        gpu_count = torch.cuda.device_count()
-        print(f"\n🔍 GPU HEALTH CHECK:")
-        print(f"Available GPUs: {gpu_count}")
-        
-        working_gpus = []
-        for i in range(min(gpu_count, 8)):  # ✅ LIMIT TO 8 GPUs MAX to prevent hanging
-            try:
-                print(f"🔥 Testing GPU {i}...", flush=True)
-                sys.stdout.flush()
-                
-                # ✅ SMALLER TEST - Reduce memory allocation
-                test_tensor = torch.randn(5, 5).cuda(i)  # Smaller tensor
-                gpu_name = torch.cuda.get_device_name(i)
-                memory_total = torch.cuda.get_device_properties(i).total_memory / 1024**3
-                print(f"  GPU {i}: {gpu_name} ({memory_total:.1f}GB) - ✅ Working")
-                working_gpus.append(i)
-                del test_tensor
-                torch.cuda.empty_cache()  # ✅ Clear after each test
-            except Exception as e:
-                print(f"  GPU {i}: ❌ Error - {str(e)}")
-        
-        print(f"Working GPUs: {working_gpus}")
-        
-        if len(working_gpus) == 0:
-            print("⚠️ No working GPUs found, falling back to CPU")
-            device = 'cpu'
-        elif len(working_gpus) == 1:
-            device = f'cuda:{working_gpus[0]}'
-            print(f"Using single GPU: {device}")
-        else:
-            device = 'cuda'
-            print(f"Will use DataParallel with {len(working_gpus)} GPUs")
-        
-        if device != 'cpu':
-            print(f"GPU Memory before training: {torch.cuda.memory_allocated()/1024**3:.2f} GB")
-    else:
-        print("❌ CUDA not available, using CPU")
-        device = 'cpu'
-
-    print(f"🔥 Creating enhanced model...", flush=True)
-    sys.stdout.flush()
     
     # Create enhanced model
     model = ProteinInteractionClassifier(
-        encoder_layers=8,                     # ✅ USE 8 instead of 16
-        encoder_embed_dim=256,                # ✅ ADD this parameter
-        encoder_heads=8,                      # ✅ ADD this parameter  
+        encoder_layers=16,  # Research-recommended depth
         use_variable_length=use_variable_length,
-        decoder_hidden_dims=[256, 128, 64]   # ✅ USE smaller decoder
+        decoder_hidden_dims=[512, 256, 128]  # Research-recommended MLP architecture
     ).to(device)
-    
-    print(f"🔥 Model created and moved to {device}!", flush=True)
-    sys.stdout.flush()
-
-    # ✅ OPTIMIZED MULTI-GPU SETUP
-    original_batch_size = batch_size
-    if device != 'cpu' and len(working_gpus) > 1:
-        print(f"🔥 Setting up DataParallel with GPUs: {working_gpus}", flush=True)
-        sys.stdout.flush()
-        
-        # Only use working GPUs
-        if len(working_gpus) < torch.cuda.device_count():
-            # Set visible devices to only working ones
-            os.environ['CUDA_VISIBLE_DEVICES'] = ','.join(map(str, working_gpus))
-            print(f"Set CUDA_VISIBLE_DEVICES to: {os.environ['CUDA_VISIBLE_DEVICES']}")
-        
-        try:
-            model = nn.DataParallel(model, device_ids=working_gpus)
-            print(f"🔥 DataParallel setup successful!", flush=True)
-            sys.stdout.flush()
-        except Exception as e:
-            print(f"⚠️ DataParallel setup failed: {e}, using single GPU instead")
-            device = f'cuda:{working_gpus[0]}'
-        
-        # Adjust batch size for multiple GPUs
-        batch_size_per_gpu = max(1, batch_size // len(working_gpus))
-        effective_batch_size = batch_size_per_gpu * len(working_gpus)
-        print(f"Batch size per GPU: {batch_size_per_gpu}")
-        print(f"Effective total batch size: {effective_batch_size}")
-        
-        if effective_batch_size != original_batch_size:
-            print(f"⚠️ Batch size adjusted from {original_batch_size} to {effective_batch_size}")
-    
-    print(f"🔥 Creating optimizer and scheduler...", flush=True)
-    sys.stdout.flush()
     
     # Optimizer with weight decay
     optimizer = torch.optim.AdamW(
@@ -871,18 +690,12 @@ def train_model(train_data, val_data, embeddings_dict,
     # Loss function
     criterion = nn.BCEWithLogitsLoss()
     
-    print(f"🔥 Setting up training variables...", flush=True)
-    sys.stdout.flush()
-    
     # Training setup - use AUC as primary metric
     best_val_auc = 0
     best_val_loss = float('inf')
     history = []
     
     # Create log directory
-    print(f"🔥 Creating directories...", flush=True)
-    sys.stdout.flush()
-    
     os.makedirs('logs', exist_ok=True)
     os.makedirs('models', exist_ok=True)
     ts = datetime.now().strftime('%Y%m%d-%H%M%S')
@@ -896,41 +709,7 @@ def train_model(train_data, val_data, embeddings_dict,
     print(f"Best model will be saved to: {best_path}")
     print(f"Checkpoints will be saved to: {checkpoint_dir}/")
     
-    # ✅ CRITICAL TEST: Test model with first batch before training
-    print("🔥 Testing model with first batch before training...", flush=True)
-    sys.stdout.flush()
-    
-    try:
-        test_batch = next(iter(train_loader))
-        emb_a, emb_b, lengths_a, lengths_b, interactions = test_batch
-        print(f"🔥 Test batch: {len(interactions)} samples, emb_a: {emb_a.shape}, emb_b: {emb_b.shape}", flush=True)
-        
-        # Move to device
-        emb_a = emb_a.to(device)
-        emb_b = emb_b.to(device)
-        lengths_a = lengths_a.to(device)
-        lengths_b = lengths_b.to(device)
-        
-        # Test forward pass
-        with torch.no_grad():
-            model.eval()
-            test_output = model(emb_a, emb_b, lengths_a, lengths_b)
-            print(f"🔥 Model test SUCCESSFUL! Output: {test_output.shape}", flush=True)
-        
-        # Clean up
-        del emb_a, emb_b, lengths_a, lengths_b, interactions, test_output
-        torch.cuda.empty_cache() if torch.cuda.is_available() else None
-        
-    except Exception as e:
-        print(f"❌ Model test FAILED: {e}")
-        raise e
-    print("🔥 ENTERING TRAINING LOOP...", flush=True)
-    sys.stdout.flush()
-    
     for epoch in range(1, epochs + 1):
-        print(f"🔥 STARTING EPOCH {epoch}/{epochs}...", flush=True)
-        sys.stdout.flush()
-        
         # Training phase
         model.train()
         train_losses = []
@@ -938,14 +717,7 @@ def train_model(train_data, val_data, embeddings_dict,
         train_probs = []
         train_labels = []
         
-        print(f"🔥 Processing training batches (total: {num_train_batches})...", flush=True)
-        sys.stdout.flush()
-        
         for batch_idx, (emb_a, emb_b, lengths_a, lengths_b, interactions) in enumerate(train_loader):
-            if batch_idx == 0:
-                print(f"🔥 Processing first batch of epoch {epoch}...", flush=True)
-                sys.stdout.flush()
-            
             # Move to device
             emb_a = emb_a.to(device).float()
             emb_b = emb_b.to(device).float()
@@ -954,7 +726,7 @@ def train_model(train_data, val_data, embeddings_dict,
             interactions = interactions.to(device).float()
             
             # Forward pass
-            logits = model(emb_a, emb_b, lengths_a, lengths_b).squeeze(-1)  # ✅ CHANGED FROM .squeeze() to .squeeze(-1)
+            logits = model(emb_a, emb_b, lengths_a, lengths_b).squeeze()
             loss = criterion(logits, interactions)
             
             # Backward pass
@@ -972,18 +744,10 @@ def train_model(train_data, val_data, embeddings_dict,
                 train_probs.extend(probs.cpu().numpy())
                 train_labels.extend(interactions.cpu().numpy())
             
-            # Clear intermediate tensors
-            del emb_a, emb_b, lengths_a, lengths_b, interactions, logits, loss, probs, preds
-
-            if batch_idx % 10 == 0:  # ✅ CHANGED from 50 to 10 for faster feedback
+            if batch_idx % 50 == 0:
                 progress = (epoch - 1) * num_train_batches + batch_idx
-                gpu_memory_info = get_gpu_memory_info()  # ✅ USE NEW MONITORING FUNCTION
                 print(f'Epoch {epoch}/{epochs} Batch {batch_idx}/{num_train_batches} '
-                      f'({progress}/{total_train_steps} total) Loss: {train_losses[-1]:.4f}, {gpu_memory_info}', flush=True)
-                
-                # Clear cache every 10 batches
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
+                      f'({progress}/{total_train_steps} total) Loss: {loss.item():.4f}')
         
         # Validation phase
         model.eval()
@@ -1002,7 +766,7 @@ def train_model(train_data, val_data, embeddings_dict,
                 interactions = interactions.to(device).float()
                 
                 # Forward pass
-                logits = model(emb_a, emb_b, lengths_a, lengths_b).squeeze(-1)  # ✅ CHANGED FROM .squeeze() to .squeeze(-1)
+                logits = model(emb_a, emb_b, lengths_a, lengths_b).squeeze()
                 loss = criterion(logits, interactions)
                 
                 # Track metrics
@@ -1115,7 +879,7 @@ def evaluate_model(model_path, test_data, embeddings_dict, device='cuda' if torc
     Evaluate the trained enhanced model on test data
     """
     # Load model
-    checkpoint = torch.load(model_path, map_location=device, weights_only=False)
+    checkpoint = torch.load(model_path, map_location=device)
     config = checkpoint['config']
     
     model = ProteinInteractionClassifier(
@@ -1123,10 +887,7 @@ def evaluate_model(model_path, test_data, embeddings_dict, device='cuda' if torc
         use_variable_length=config.get('use_variable_length', True),
         decoder_hidden_dims=[512, 256, 128]
     ).to(device)
-    
-    # Fix DataParallel state_dict if needed
-    model_state_dict = fix_dataparallel_state_dict(checkpoint['model_state_dict'])
-    model.load_state_dict(model_state_dict)
+    model.load_state_dict(checkpoint['model_state_dict'])
     model.eval()
     
     # Create test dataset and loader
@@ -1136,7 +897,7 @@ def evaluate_model(model_path, test_data, embeddings_dict, device='cuda' if torc
         batch_size=32, 
         shuffle=False, 
         collate_fn=collate_fn,
-        num_workers=0  # ✅ CHANGED FROM 2 to 0
+        num_workers=2
     )
     
     # Evaluation
@@ -1153,7 +914,7 @@ def evaluate_model(model_path, test_data, embeddings_dict, device='cuda' if torc
             lengths_b = lengths_b.to(device)
             
             # Forward pass
-            logits = model(emb_a, emb_b, lengths_a, lengths_b).squeeze(-1)  # ✅ CHANGED FROM .squeeze() to .squeeze(-1)
+            logits = model(emb_a, emb_b, lengths_a, lengths_b).squeeze()
             probs = torch.sigmoid(logits)
             preds = (probs > 0.5).float()
             
@@ -1188,8 +949,8 @@ def evaluate_model(model_path, test_data, embeddings_dict, device='cuda' if torc
 
 
 def resume_training_from_checkpoint(checkpoint_path, train_data, val_data, embeddings_dict,
-                                   additional_epochs=20, batch_size=16, learning_rate=3e-4,  # ✅ INCREASED FROM 1e-4 to 3e-4
-                                   save_every_epochs=1,
+                                   additional_epochs=20, batch_size=16, learning_rate=1e-4,
+                                   save_every_epochs=10,
                                    device='cuda' if torch.cuda.is_available() else 'cpu'):
     """
     Resume training from a saved checkpoint
@@ -1204,7 +965,7 @@ def resume_training_from_checkpoint(checkpoint_path, train_data, val_data, embed
     print(f"Checkpoint: {checkpoint_path}")
     
     # Load checkpoint
-    checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
+    checkpoint = torch.load(checkpoint_path, map_location=device)
     config = checkpoint['config']
     start_epoch = checkpoint['epoch'] + 1
     
@@ -1216,22 +977,21 @@ def resume_training_from_checkpoint(checkpoint_path, train_data, val_data, embed
     train_dataset = ProteinPairDataset(train_data, embeddings_dict)
     val_dataset = ProteinPairDataset(val_data, embeddings_dict)
     
-    # REPLACE BOTH DataLoaders:
     train_loader = DataLoader(
         train_dataset, 
         batch_size=batch_size, 
         shuffle=True, 
         collate_fn=collate_fn,
-        num_workers=0,      # ✅ CHANGE TO 0
-        pin_memory=False    # ✅ CHANGE TO False
+        num_workers=2,
+        pin_memory=True
     )
     val_loader = DataLoader(
         val_dataset, 
         batch_size=batch_size, 
         shuffle=False, 
         collate_fn=collate_fn,
-        num_workers=0,      # ✅ ALREADY CORRECT
-        pin_memory=False    # ✅ ALREADY CORRECT
+        num_workers=2,
+        pin_memory=True
     )
     
     # Create model and load state
@@ -1240,10 +1000,7 @@ def resume_training_from_checkpoint(checkpoint_path, train_data, val_data, embed
         use_variable_length=config.get('use_variable_length', True),
         decoder_hidden_dims=[512, 256, 128]
     ).to(device)
-    
-    # Fix DataParallel state_dict if needed
-    model_state_dict = fix_dataparallel_state_dict(checkpoint['model_state_dict'])
-    model.load_state_dict(model_state_dict)
+    model.load_state_dict(checkpoint['model_state_dict'])
     
     # Create optimizer and scheduler, load states
     optimizer = torch.optim.AdamW(
@@ -1279,9 +1036,6 @@ def resume_training_from_checkpoint(checkpoint_path, train_data, val_data, embed
     criterion = nn.BCEWithLogitsLoss()
     
     for epoch in range(start_epoch, start_epoch + additional_epochs):
-        print(f"🔥 STARTING EPOCH {epoch}/{epochs}...", flush=True)
-        sys.stdout.flush()
-        
         # Training phase
         model.train()
         train_losses = []
@@ -1289,21 +1043,14 @@ def resume_training_from_checkpoint(checkpoint_path, train_data, val_data, embed
         train_probs = []
         train_labels = []
         
-        print(f"🔥 Processing training batches (total: {num_train_batches})...", flush=True)
-        sys.stdout.flush()
-        
         for batch_idx, (emb_a, emb_b, lengths_a, lengths_b, interactions) in enumerate(train_loader):
-            if batch_idx == 0:
-                print(f"🔥 Processing first batch of epoch {epoch}...", flush=True)
-                sys.stdout.flush()
-            
             emb_a = emb_a.to(device).float()
             emb_b = emb_b.to(device).float()
             lengths_a = lengths_a.to(device)
             lengths_b = lengths_b.to(device)
             interactions = interactions.to(device).float()
             
-            logits = model(emb_a, emb_b, lengths_a, lengths_b).squeeze(-1)  # ✅ CHANGED FROM .squeeze() to .squeeze(-1)
+            logits = model(emb_a, emb_b, lengths_a, lengths_b).squeeze()
             loss = criterion(logits, interactions)
             
             optimizer.zero_grad()
@@ -1319,9 +1066,7 @@ def resume_training_from_checkpoint(checkpoint_path, train_data, val_data, embed
                 train_probs.extend(probs.cpu().numpy())
                 train_labels.extend(interactions.cpu().numpy())
             
-            if batch_idx % 10 == 0:  # ✅ CHANGED from 50 to 10 for faster feedback
-                progress = (epoch - 1) * num_train_batches + batch_idx
-                gpu_memory_info = get_gpu_memory_info()  # ✅ USE NEW MONITORING FUNCTION
+            if batch_idx % 50 == 0:
                 print(f'Resumed Epoch {epoch} Batch {batch_idx} Loss: {loss.item():.4f}')
         
         # Validation phase (same as train_model)
@@ -1339,7 +1084,7 @@ def resume_training_from_checkpoint(checkpoint_path, train_data, val_data, embed
                 lengths_b = lengths_b.to(device)
                 interactions = interactions.to(device).float()
                 
-                logits = model(emb_a, emb_b, lengths_a, lengths_b).squeeze(-1)  # ✅ CHANGED FROM .squeeze() to .squeeze(-1)
+                logits = model(emb_a, emb_b, lengths_a, lengths_b).squeeze()
                 loss = criterion(logits, interactions)
                 
                 val_losses.append(loss.item())
@@ -1434,26 +1179,15 @@ def resume_training_from_checkpoint(checkpoint_path, train_data, val_data, embed
 
 
 if __name__ == '__main__':
-    # ✅ ADD IMMEDIATE DEBUG OUTPUT WITH FORCED FLUSHING
-    print("🔥 SCRIPT STARTED - Python v4.py is running!", flush=True)
-    sys.stdout.flush()
-    
     # Load actual data
-    print("Enhanced Protein-Protein Interaction Prediction v4", flush=True)
-    print("=" * 60, flush=True)
-    print("Features: RoPE encoding, 16-layer transformers, cross-attention, enhanced MLP", flush=True)
-    print("=" * 60, flush=True)
-    sys.stdout.flush()
+    print("Enhanced Protein-Protein Interaction Prediction v4")
+    print("=" * 60)
+    print("Features: RoPE encoding, 16-layer transformers, cross-attention, enhanced MLP")
+    print("=" * 60)
     
     try:
-        print("🔥 ABOUT TO LOAD DATA...", flush=True)
-        sys.stdout.flush()
-        
         # Load data using the new function
         train_data, cv_data, test1_data, test2_data, protein_embeddings = load_data()
-        
-        print("🔥 DATA LOADING COMPLETED SUCCESSFULLY!", flush=True)
-        sys.stdout.flush()
         
         print(f"\nData loaded successfully:")
         print(f"Training data: {len(train_data)} pairs")
@@ -1462,114 +1196,33 @@ if __name__ == '__main__':
         print(f"Test2 data: {len(test2_data)} pairs")
         print(f"Protein embeddings: {len(protein_embeddings)} proteins")
         
-        print("🔥 ABOUT TO CHECK FOR CHECKPOINTS...", flush=True)
-        sys.stdout.flush()
-        
-        # ✅ DISABLED AUTOMATIC CHECKPOINT DETECTION - STARTING FRESH
-        print("🔍 Checkpoint detection disabled - starting fresh training...", flush=True)
-        sys.stdout.flush()
-        
-        """
-        # ✅ ADD AUTOMATIC CHECKPOINT DETECTION
-        print("🔍 Checking for existing checkpoints to resume...")
-        
-        checkpoint_dirs = []
-        if os.path.exists('models'):
-            for item in os.listdir('models'):
-                if item.startswith('checkpoints_') and os.path.isdir(os.path.join('models', item)):
-                    checkpoint_dirs.append(item)
-        
-        latest_checkpoint = None
-        if checkpoint_dirs:
-            # Sort by timestamp (newest first)
-            checkpoint_dirs.sort(reverse=True)
-            latest_checkpoint_dir = os.path.join('models', checkpoint_dirs[0])
-            
-            # Find the latest checkpoint file in the directory
-            checkpoint_files = []
-            for file in os.listdir(latest_checkpoint_dir):
-                if file.startswith('checkpoint_epoch_') and file.endswith('.pth'):
-                    checkpoint_files.append(file)
-            
-            if checkpoint_files:
-                # Sort by epoch number
-                checkpoint_files.sort(key=lambda x: int(x.split('_')[2].split('.')[0]))
-                latest_checkpoint = os.path.join(latest_checkpoint_dir, checkpoint_files[-1])
-                print(f"📁 Found latest checkpoint: {latest_checkpoint}")
-                
-                # Check if we should resume
-                checkpoint = torch.load(latest_checkpoint, map_location='cpu', weights_only=False)
-                completed_epochs = checkpoint['epoch']
-                val_auc = checkpoint.get('val_auc', 0)
-                
-                print(f"Checkpoint info: Epoch {completed_epochs}, Val AUC: {val_auc:.4f}")
-                
-                # Auto-resume if not completed (less than 50 epochs)
-                if completed_epochs < 50:
-                    print(f"🔄 Auto-resuming training from epoch {completed_epochs}...")
-                    remaining_epochs = 50 - completed_epochs
-                    
-                    history, model_path = resume_training_from_checkpoint(
-                        latest_checkpoint, train_data, cv_data, protein_embeddings,
-                        additional_epochs=remaining_epochs,
-                        batch_size=8,  # ✅ INCREASED FROM 4 to 8 for 4 GPUs
-                        learning_rate=3e-4,
-                        save_every_epochs=1
-                    )
-                    
-                    print(f"✅ Resumed training completed!")
-                    # Skip the normal training loop
-                    exit(0)
-                else:
-                    print(f"✅ Training already completed ({completed_epochs} epochs)")
-            else:
-                print("No checkpoint files found in directory")
-        else:
-            print("No existing checkpoint directories found")
-        """
-        
-        print("🔥 STARTING TRAINING CONFIGURATIONS...", flush=True)
-        sys.stdout.flush()
-        
-        # Train models with different configurations (only if not resumed)
+        # Train models with different configurations
         # Compare variable-length vs fixed-length embeddings
         configurations = [
             {'use_variable_length': True, 'name': 'variable_length'},
             {'use_variable_length': False, 'name': 'fixed_length'}
         ]
         
-        print(f"🔥 CONFIGURATIONS DEFINED: {len(configurations)} configs", flush=True)
-        sys.stdout.flush()
-        
         best_models = {}
-        
-        print("🔥 ENTERING TRAINING LOOP...", flush=True)
-        sys.stdout.flush()
         
         for config in configurations:
             config_name = config['name']
-            print(f"🔥 STARTING CONFIG: {config_name}", flush=True)
-            sys.stdout.flush()
-            
             print(f"\n" + "="*60)
             print(f"Training enhanced model with {config_name} embeddings...")
             print("="*60)
             
             try:
-                print(f"🔥 CALLING train_model() for {config_name}...", flush=True)
-                sys.stdout.flush()
-                
                 history, model_path = train_model(
                     train_data, cv_data, protein_embeddings,
                     use_variable_length=config['use_variable_length'],
-                    epochs=3,  # ✅ REDUCED from 50 to 3 for initial testing
-                    batch_size=16,  # ✅ INCREASED from 2 to 16
-                    learning_rate=3e-4,  # ✅ INCREASED FROM 1e-4 to 3e-4
-                    save_every_epochs=1  # Save checkpoints every 1 epochs
+                    epochs=50,
+                    batch_size=16,
+                    learning_rate=1e-4,
+                    save_every_epochs=10  # Save checkpoints every 10 epochs
                 )
                 
                 # Load the best model and get its validation AUC
-                checkpoint = torch.load(model_path, map_location='cpu', weights_only=False)
+                checkpoint = torch.load(model_path, map_location='cpu')
                 best_auc = checkpoint['val_auc']
                 
                 best_models[config_name] = {
