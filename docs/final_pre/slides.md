@@ -181,7 +181,7 @@ We evaluated multiple classification algorithms to determine the optimal approac
 
 ### Logistic Regression
 
-1. **As baseline**: Tests linear separability of MAE features
+1. **As baseline**: Tests linear separability of features
 2. **Computational efficiency**:
    - Fast training
    - Easy hyperparameter tuning (e.g., regularization strength `C`)
