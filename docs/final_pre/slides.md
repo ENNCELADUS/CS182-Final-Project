@@ -88,7 +88,7 @@ style: |
 - Technical Details:
   - Input: Protein sequences from the `b4ppi` dataset
   - Model: ESM-C pre-trained transformer
-  - Output: Embeddings with shape $[L+2, 960]$, where $L$ represents sequence length and 960 is the embedding dimension.
+  - Output: Embeddings with shape $[L+2, 960]$, where $L$ represents sequence length and 960 is the embedding dimension.(other 2 are [CLS], [EOS] token)
 
 ---
 
