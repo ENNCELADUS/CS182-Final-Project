@@ -128,12 +128,9 @@ We evaluated multiple classification algorithms to determine the optimal approac
 
 ---
 ### XGBoost
-1. **Nonlinear feature interactions**: 
+**Nonlinear feature interactions**: 
    - Discovers complex patterns in 960-D MAE space
-2. **Interpretability**: 
-   - Feature importance scores (`gain`, `cover`, `weight`)
-3. **Data robustness**: 
-   - Handles noisy/zero-filled MAE outputs
+
 
 | Method               | Dataset | AUROC  |
 |----------------------|---------|--------|
