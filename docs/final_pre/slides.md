@@ -203,7 +203,7 @@ We evaluated multiple classification algorithms to determine the optimal approac
 * Finds optimal decision boundary with regularization
 * Use different kernels to capture non-linearities:
   ```python
-  kernels = ['linear', 'rbf', 'poly']  
+  "svm__kernel" : ['linear', 'poly', 'rbf', 'sigmoid']
   # Handles linear/nonlinear cases```
   ```
 * Effective in feature-rich, sample-limited scenarios
