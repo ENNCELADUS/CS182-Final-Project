@@ -326,7 +326,7 @@ class ProteinEncoder(nn.Module):
     Enhanced protein encoder based on latest research findings
     Uses 12-24 layers with RoPE positional encoding and variable-length support
     """
-    def __init__(self, input_dim=960, embed_dim=256, num_layers=6, nhead=8, ff_dim=1024, 
+    def __init__(self, input_dim=960, embed_dim=512, num_layers=16, nhead=16, ff_dim=2048, 
                  use_variable_length=True, max_fixed_length=512):
         super().__init__()
         
@@ -342,8 +342,8 @@ class ProteinEncoder(nn.Module):
         ])
         
         # Enhanced hierarchical pooling with both local and global attention
-        self.global_attn = nn.MultiheadAttention(embed_dim, num_heads=4, batch_first=True)
-        self.local_attn = nn.MultiheadAttention(embed_dim, num_heads=4, batch_first=True)
+        self.global_attn = nn.MultiheadAttention(embed_dim, num_heads=8, batch_first=True)
+        self.local_attn = nn.MultiheadAttention(embed_dim, num_heads=8, batch_first=True)
         
         # Compression head with residual connection
         self.compress_head = nn.Sequential(
@@ -426,7 +426,7 @@ class CrossAttentionInteraction(nn.Module):
     Cross-attention between protein embeddings as recommended by research
     Better than simple concatenation or pooling for interaction prediction
     """
-    def __init__(self, embed_dim=960, num_heads=8, ff_dim=512):
+    def __init__(self, embed_dim=960, num_heads=16, ff_dim=1024):
         super().__init__()
         
         # Bidirectional cross-attention
@@ -486,7 +486,7 @@ class EnhancedMLPDecoder(nn.Module):
     - Residual connections
     - Layer normalization and dropout
     """
-    def __init__(self, input_dim=960, hidden_dims=[256, 128], dropout=0.2):
+    def __init__(self, input_dim=960, hidden_dims=[512, 256, 128], dropout=0.2):
         super().__init__()
         
         self.layers = nn.ModuleList()
@@ -550,20 +550,20 @@ class ProteinInteractionClassifier(nn.Module):
     Enhanced protein-protein interaction prediction model (v4) based on latest research
     
     Architecture:
-    1. Protein A/B ESMC Embedding -> Enhanced ProteinEncoder (6 layers, RoPE) -> Refined Embedding A/B  
+    1. Protein A/B ESMC Embedding -> Enhanced ProteinEncoder (12-24 layers, RoPE) -> Refined Embedding A/B  
     2. Cross-attention between protein embeddings
     3. Enhanced MLP decoder with residual connections for binary classification
     """
     def __init__(self, 
-                 encoder_embed_dim=256,
-                 encoder_layers=6,  # Reduced from 16 to 6 for memory efficiency
-                 encoder_heads=8,   # Reduced from 16 to 8 for memory efficiency
+                 encoder_embed_dim=512,
+                 encoder_layers=16,  # Increased from 4 to 16 based on research
+                 encoder_heads=16,
                  use_variable_length=True,
-                 decoder_hidden_dims=[256, 128],  # Reduced dimensions for memory efficiency
+                 decoder_hidden_dims=[512, 256, 128],  # Research-recommended dimensions
                  dropout=0.2):
         super().__init__()
         
-        # Enhanced shared protein encoder with fewer layers for memory efficiency
+        # Enhanced shared protein encoder with more layers
         self.protein_encoder = ProteinEncoder(
             input_dim=960,
             embed_dim=encoder_embed_dim,
@@ -576,8 +576,8 @@ class ProteinInteractionClassifier(nn.Module):
         # Cross-attention interaction layer
         self.interaction_layer = CrossAttentionInteraction(
             embed_dim=960, 
-            num_heads=8,  # Reduced from 16 to 8
-            ff_dim=512    # Reduced from 1024 to 512
+            num_heads=16,
+            ff_dim=1024
         )
         
         # Enhanced MLP decoder with residual connections
@@ -623,7 +623,7 @@ class ProteinInteractionClassifier(nn.Module):
 
 
 def train_model(train_data, val_data, embeddings_dict, 
-                epochs=50, batch_size=8, learning_rate=1e-4,  # Reduced from 16 to 8
+                epochs=50, batch_size=16, learning_rate=1e-4, 
                 use_variable_length=True,
                 save_every_epochs=10,  # Save checkpoint every N epochs
                 device='cuda' if torch.cuda.is_available() else 'cpu'):
@@ -634,15 +634,14 @@ def train_model(train_data, val_data, embeddings_dict,
     train_dataset = ProteinPairDataset(train_data, embeddings_dict)
     val_dataset = ProteinPairDataset(val_data, embeddings_dict)
     
-    # Create data loaders with smaller batch size for memory efficiency
+    # Create data loaders
     train_loader = DataLoader(
         train_dataset, 
         batch_size=batch_size, 
         shuffle=True, 
         collate_fn=collate_fn,
         num_workers=2,
-        pin_memory=True,
-        drop_last=True  # Drop last incomplete batch to avoid dimension issues
+        pin_memory=True
     )
     val_loader = DataLoader(
         val_dataset, 
@@ -650,8 +649,7 @@ def train_model(train_data, val_data, embeddings_dict,
         shuffle=False, 
         collate_fn=collate_fn,
         num_workers=2,
-        pin_memory=True,
-        drop_last=False  # Keep all validation data
+        pin_memory=True
     )
     
     # Calculate training statistics
@@ -670,29 +668,12 @@ def train_model(train_data, val_data, embeddings_dict,
     print(f"Progress reports every 50 batches")
     print(f"Checkpoints saved every {save_every_epochs} epochs")
     
-    # GPU memory monitoring
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-        initial_memory = torch.cuda.memory_allocated() / 1024**3
-        print(f"GPU Memory before training: {initial_memory:.2f} GB")
-        
-        # Enable memory-efficient settings
-        torch.backends.cudnn.benchmark = True
-        torch.backends.cuda.matmul.allow_tf32 = True
-    
-    # Create enhanced model with reduced size
+    # Create enhanced model
     model = ProteinInteractionClassifier(
-        encoder_layers=6,  # Reduced for memory efficiency
-        encoder_embed_dim=256,  # Reduced for memory efficiency
-        encoder_heads=8,  # Reduced for memory efficiency
+        encoder_layers=16,  # Research-recommended depth
         use_variable_length=use_variable_length,
-        decoder_hidden_dims=[256, 128]  # Reduced for memory efficiency
+        decoder_hidden_dims=[512, 256, 128]  # Research-recommended MLP architecture
     ).to(device)
-    
-    # Use DataParallel if multiple GPUs available
-    if torch.cuda.device_count() > 1:
-        print(f"Using {torch.cuda.device_count()} GPUs")
-        model = nn.DataParallel(model)
     
     # Optimizer with weight decay
     optimizer = torch.optim.AdamW(
@@ -745,14 +726,7 @@ def train_model(train_data, val_data, embeddings_dict,
             interactions = interactions.to(device).float()
             
             # Forward pass
-            logits = model(emb_a, emb_b, lengths_a, lengths_b)  # (B, 1)
-            
-            # Fix dimension mismatch: ensure both have same shape
-            if logits.dim() > 1:
-                logits = logits.squeeze(-1)  # (B,) - only squeeze last dimension
-            if interactions.dim() == 0:
-                interactions = interactions.unsqueeze(0)  # Make sure it's at least 1D
-                
+            logits = model(emb_a, emb_b, lengths_a, lengths_b).squeeze()
             loss = criterion(logits, interactions)
             
             # Backward pass
@@ -772,9 +746,8 @@ def train_model(train_data, val_data, embeddings_dict,
             
             if batch_idx % 50 == 0:
                 progress = (epoch - 1) * num_train_batches + batch_idx
-                current_memory = torch.cuda.memory_allocated() / 1024**3 if torch.cuda.is_available() else 0
                 print(f'Epoch {epoch}/{epochs} Batch {batch_idx}/{num_train_batches} '
-                      f'({progress}/{total_train_steps} total) Loss: {loss.item():.4f}, GPU: {current_memory:.2f}GB')
+                      f'({progress}/{total_train_steps} total) Loss: {loss.item():.4f}')
         
         # Validation phase
         model.eval()
@@ -793,14 +766,7 @@ def train_model(train_data, val_data, embeddings_dict,
                 interactions = interactions.to(device).float()
                 
                 # Forward pass
-                logits = model(emb_a, emb_b, lengths_a, lengths_b)  # (B, 1)
-                
-                # Fix dimension mismatch: ensure both have same shape
-                if logits.dim() > 1:
-                    logits = logits.squeeze(-1)  # (B,) - only squeeze last dimension
-                if interactions.dim() == 0:
-                    interactions = interactions.unsqueeze(0)  # Make sure it's at least 1D
-                    
+                logits = model(emb_a, emb_b, lengths_a, lengths_b).squeeze()
                 loss = criterion(logits, interactions)
                 
                 # Track metrics
@@ -844,9 +810,7 @@ def train_model(train_data, val_data, embeddings_dict,
                     'use_variable_length': use_variable_length,
                     'batch_size': batch_size,
                     'learning_rate': learning_rate,
-                    'encoder_layers': 6,
-                    'encoder_embed_dim': 256,
-                    'encoder_heads': 8
+                    'encoder_layers': 16
                 },
                 'history': history
             }, best_path)
@@ -870,9 +834,7 @@ def train_model(train_data, val_data, embeddings_dict,
                     'use_variable_length': use_variable_length,
                     'batch_size': batch_size,
                     'learning_rate': learning_rate,
-                    'encoder_layers': 6,
-                    'encoder_embed_dim': 256,
-                    'encoder_heads': 8
+                    'encoder_layers': 16
                 },
                 'history': history
             }, checkpoint_path)
@@ -921,11 +883,9 @@ def evaluate_model(model_path, test_data, embeddings_dict, device='cuda' if torc
     config = checkpoint['config']
     
     model = ProteinInteractionClassifier(
-        encoder_layers=config.get('encoder_layers', 6),
-        encoder_embed_dim=config.get('encoder_embed_dim', 256),
-        encoder_heads=config.get('encoder_heads', 8),
+        encoder_layers=config.get('encoder_layers', 16),
         use_variable_length=config.get('use_variable_length', True),
-        decoder_hidden_dims=[256, 128]
+        decoder_hidden_dims=[512, 256, 128]
     ).to(device)
     model.load_state_dict(checkpoint['model_state_dict'])
     model.eval()
@@ -954,12 +914,7 @@ def evaluate_model(model_path, test_data, embeddings_dict, device='cuda' if torc
             lengths_b = lengths_b.to(device)
             
             # Forward pass
-            logits = model(emb_a, emb_b, lengths_a, lengths_b)  # (B, 1)
-            
-            # Fix dimension mismatch
-            if logits.dim() > 1:
-                logits = logits.squeeze(-1)  # (B,)
-                
+            logits = model(emb_a, emb_b, lengths_a, lengths_b).squeeze()
             probs = torch.sigmoid(logits)
             preds = (probs > 0.5).float()
             
@@ -994,7 +949,7 @@ def evaluate_model(model_path, test_data, embeddings_dict, device='cuda' if torc
 
 
 def resume_training_from_checkpoint(checkpoint_path, train_data, val_data, embeddings_dict,
-                                   additional_epochs=20, batch_size=8, learning_rate=1e-4,  # Reduced from 16 to 8
+                                   additional_epochs=20, batch_size=16, learning_rate=1e-4,
                                    save_every_epochs=10,
                                    device='cuda' if torch.cuda.is_available() else 'cpu'):
     """
@@ -1028,8 +983,7 @@ def resume_training_from_checkpoint(checkpoint_path, train_data, val_data, embed
         shuffle=True, 
         collate_fn=collate_fn,
         num_workers=2,
-        pin_memory=True,
-        drop_last=True  # Drop last incomplete batch to avoid dimension issues
+        pin_memory=True
     )
     val_loader = DataLoader(
         val_dataset, 
@@ -1037,17 +991,14 @@ def resume_training_from_checkpoint(checkpoint_path, train_data, val_data, embed
         shuffle=False, 
         collate_fn=collate_fn,
         num_workers=2,
-        pin_memory=True,
-        drop_last=False  # Keep all validation data
+        pin_memory=True
     )
     
     # Create model and load state
     model = ProteinInteractionClassifier(
-        encoder_layers=config.get('encoder_layers', 6),
-        encoder_embed_dim=config.get('encoder_embed_dim', 256),
-        encoder_heads=config.get('encoder_heads', 8),
+        encoder_layers=config.get('encoder_layers', 16),
         use_variable_length=config.get('use_variable_length', True),
-        decoder_hidden_dims=[256, 128]
+        decoder_hidden_dims=[512, 256, 128]
     ).to(device)
     model.load_state_dict(checkpoint['model_state_dict'])
     
@@ -1099,14 +1050,7 @@ def resume_training_from_checkpoint(checkpoint_path, train_data, val_data, embed
             lengths_b = lengths_b.to(device)
             interactions = interactions.to(device).float()
             
-            logits = model(emb_a, emb_b, lengths_a, lengths_b)  # (B, 1)
-            
-            # Fix dimension mismatch: ensure both have same shape
-            if logits.dim() > 1:
-                logits = logits.squeeze(-1)  # (B,) - only squeeze last dimension
-            if interactions.dim() == 0:
-                interactions = interactions.unsqueeze(0)  # Make sure it's at least 1D
-                
+            logits = model(emb_a, emb_b, lengths_a, lengths_b).squeeze()
             loss = criterion(logits, interactions)
             
             optimizer.zero_grad()
@@ -1140,14 +1084,7 @@ def resume_training_from_checkpoint(checkpoint_path, train_data, val_data, embed
                 lengths_b = lengths_b.to(device)
                 interactions = interactions.to(device).float()
                 
-                logits = model(emb_a, emb_b, lengths_a, lengths_b)  # (B, 1)
-                
-                # Fix dimension mismatch: ensure both have same shape
-                if logits.dim() > 1:
-                    logits = logits.squeeze(-1)  # (B,) - only squeeze last dimension
-                if interactions.dim() == 0:
-                    interactions = interactions.unsqueeze(0)  # Make sure it's at least 1D
-                    
+                logits = model(emb_a, emb_b, lengths_a, lengths_b).squeeze()
                 loss = criterion(logits, interactions)
                 
                 val_losses.append(loss.item())
@@ -1245,7 +1182,7 @@ if __name__ == '__main__':
     # Load actual data
     print("Enhanced Protein-Protein Interaction Prediction v4")
     print("=" * 60)
-    print("Features: RoPE encoding, 6-layer transformers, cross-attention, enhanced MLP")
+    print("Features: RoPE encoding, 16-layer transformers, cross-attention, enhanced MLP")
     print("=" * 60)
     
     try:
@@ -1278,8 +1215,8 @@ if __name__ == '__main__':
                 history, model_path = train_model(
                     train_data, cv_data, protein_embeddings,
                     use_variable_length=config['use_variable_length'],
-                    epochs=30,  # Reduced from 50 to 30 for faster training
-                    batch_size=8,  # Reduced from 16 to 8 for memory efficiency
+                    epochs=50,
+                    batch_size=16,
                     learning_rate=1e-4,
                     save_every_epochs=10  # Save checkpoints every 10 epochs
                 )
@@ -1311,9 +1248,9 @@ if __name__ == '__main__':
             print("="*60)
             print(f"Architecture Features:")
             print(f"  - RoPE positional encoding")
-            print(f"  - 6-layer enhanced transformers")
+            print(f"  - 16-layer enhanced transformers")
             print(f"  - Cross-attention interaction")
-            print(f"  - Enhanced MLP decoder [256→128→1]")
+            print(f"  - Enhanced MLP decoder [512→256→128→1]")
             print(f"  - Residual connections throughout")
             print(f"Best configuration: {best_config}")
             print(f"Best validation AUC: {best_model_info['val_auc']:.4f}")
@@ -1349,9 +1286,9 @@ if __name__ == '__main__':
                 'architecture': 'enhanced_v4',
                 'features': [
                     'RoPE positional encoding',
-                    '6-layer enhanced transformers', 
+                    '16-layer enhanced transformers', 
                     'Cross-attention interaction',
-                    'Enhanced MLP decoder [256→128→1]',
+                    'Enhanced MLP decoder [512→256→128→1]',
                     'Residual connections',
                     'Variable/fixed length embedding support'
                 ],
