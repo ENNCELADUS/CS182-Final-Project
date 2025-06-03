@@ -20,13 +20,13 @@ To enable downstream classification, we explored multiple pooling strategies to 
 
 ---
 
-### Initial Approach: mean pooling
-- Applied ​**mean pooling**​ along the sequence dimension `L+2` to:
+### Initial Approach: average pooling
+- Applied ​**average pooling**​ along the sequence dimension `L+2` to:
   - Handle variable-length inputs uniformly
   - Reduce computational complexity (the embedding matrix is too big)
   - Preserve channel-wise information
 - Resulting compressed embedding: `[1, 960]` per protein
-- Lost important positional and structural information
+- Lose important positional and structural information
 
 ### max pooling
 ---
@@ -68,7 +68,7 @@ return {
 
 
 ---
-## Supervised Learning Models
+## Downstream Supervised Learning Models
 
 We evaluated multiple classification algorithms to determine the optimal approach for PPI prediction.
 
@@ -78,6 +78,15 @@ We evaluated multiple classification algorithms to determine the optimal approac
 ---
 
 ### L2-cos Method
+
+| Similarity      | Dataset | Best AUC | k Value |
+|-----------------|---------|----------|---------|
+| **L2**          | Test1   | **0.5547** | 5       |
+| **L2**          | Test2   | **0.5718** | 20      |
+| **Cosine**      | Test1   | 0.5330   | 5       |
+| **Cosine**      | Test2   | 0.5676   | 20      |
+
+
 - High similarity between proteins does not necessarily imply that they have a PPI.
 
 ---
@@ -89,6 +98,14 @@ We evaluated multiple classification algorithms to determine the optimal approac
    - Fast training (compared to kernel methods/DL)
    - Easy hyperparameter tuning (e.g., regularization strength `C`)
 3. ​**Explainability**: Direct biological interpretation of feature contributions
+
+| Method             | Dataset | AUROC    |
+|--------------------|---------|--------|
+| **L2 Similarity**   | Test1   | 0.5547 |
+| **L2 Similarity**   | Test2   | 0.5718 |
+| **Logistic Regression** | Test1   | **0.6182** |
+| **Logistic Regression** | Test2   | **0.6500** |
+
 
 - Fail to capture complex nonlinear interactions between features, behaves poorly on PPI task
 
@@ -102,6 +119,12 @@ We evaluated multiple classification algorithms to determine the optimal approac
   # Handles linear/nonlinear cases```
 * Effective in feature-rich, sample-limited scenarios
 
+| Method               | Dataset | AUROC    |
+|----------------------|---------|--------|
+| **Logistic Regression** | Test1   | 0.6182 |
+| **Logistic Regression** | Test2   | **0.6500** |
+| **SVM**               | Test1   | **0.6285** |
+| **SVM**               | Test2   | 0.6201 |
 
 ---
 ### XGBoost
@@ -112,6 +135,12 @@ We evaluated multiple classification algorithms to determine the optimal approac
 3. **Data robustness**: 
    - Handles noisy/zero-filled MAE outputs
 
+| Method               | Dataset | AUROC  |
+|----------------------|---------|--------|
+| **Logistic Regression** | Test1   | 0.6182 |
+| **Logistic Regression** | Test2   | **0.6500** |
+| **XGBoost**           | Test1   | **0.6441** |
+| **XGBoost**           | Test2   | 0.6480 |
 ---
 
 ### Multi-Layer Perceptron (MLP)
