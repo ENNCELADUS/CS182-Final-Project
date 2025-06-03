@@ -273,9 +273,9 @@ We evaluated multiple classification algorithms to determine the optimal approac
 |---------------------------------------|----------|--------|--------|
 | **Sequence-based (RNN, from literature)** | Test1    | **0.68**  | **0.68**  |
 | **XGBoost (from literature)**         | Test1    | 0.62   | 0.65   |
-| **XGBoost + AvgPooling**             | Test1    | 0.6441 | 0.6447 |
+| **XGBoost + AvgPooling**             | Test1    | 0.6441 | 0.6420 |
 |                                       | Test2    | 0.6480 | 0.1761 |
-| **XGBoost + Masked Autoencoder (MAE)**| Test1    | 0.6466 | **0.6771** |
+| **XGBoost + Masked Autoencoder (MAE)**| Test1    | **0.6636** | **0.6771** |
 |                                       | Test2    | **0.6636** | **0.2020** |
 
 
@@ -283,5 +283,10 @@ We evaluated multiple classification algorithms to determine the optimal approac
 
 ## Conclusion
 
-- **Competitive Performance**: Our MAE-based approach demonstrates competitive performance against the established FG-based XGBoost baseline from literature
-- **Model Selection**: XGBoost outperforms other traditional ML classifiers (Logistic Regression, SVM)
+- **Competitive Results**: Our XGBoost + MAE approach outperforms literature XGBoost baselines, but achieves slightly lower AUROC than sequence-based RNN models from literature. 
+- **XGBoost Superiority**: XGBoost demonstrates the best performance among traditional ML classifiers, effectively capturing nonlinear feature interactions
+
+### Future Directions
+
+- End-to-end fine-tuning of MAE encoder with downstream classifiers(MLP)
+- Exploration of more sophisticated attention mechanisms
