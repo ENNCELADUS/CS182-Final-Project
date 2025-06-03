@@ -183,7 +183,7 @@ We evaluated multiple classification algorithms to determine the optimal approac
 
 1. **As baseline**: Tests linear separability of MAE features
 2. **Computational efficiency**:
-   - Fast training (compared to kernel methods/DL)
+   - Fast training
    - Easy hyperparameter tuning (e.g., regularization strength `C`)
 3. **Explainability**: Direct biological interpretation of feature contributions
 
