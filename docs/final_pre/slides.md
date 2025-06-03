@@ -272,12 +272,14 @@ We evaluated multiple classification algorithms to determine the optimal approac
 
 ### Final Comparison Table (Test1 Only)
 
-| Method                                     | AUROC    | AUPRC      |
-| ------------------------------------------ | -------- | ---------- |
-| **XGBoost (from literature)**              | 0.62     | 0.65       |
-| **RNN / Sequence-based (from literature)** | **0.68** | **0.68**   |
-| **XGBoost + AvgPooling**                   | 0.6441   | 0.6447     |
-| **XGBoost + Masked Autoencoder (MAE)**     | 0.6466   | **0.6771** |
+| Method                                | Test Set | AUROC | AUPRC |
+|---------------------------------------|----------|--------|--------|
+| **Sequence-based (RNN, from literature)** | Test1    | **0.68**  | **0.68**  |
+| **XGBoost (from literature)**         | Test1    | 0.62   | 0.65   |
+| **XGBoost + AvgPooling**             | Test1    | 0.6441 | 0.6447 |
+|                                       | Test2    | 0.6480 | 0.1761 |
+| **XGBoost + Masked Autoencoder (MAE)**| Test1    | 0.6466 | **0.6771** |
+|                                       | Test2    | **0.6636** | **0.2020** |
 
 
 ---
