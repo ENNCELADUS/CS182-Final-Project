@@ -163,6 +163,10 @@ We evaluated multiple classification algorithms to determine the optimal approac
 *Figure 3: XGBoost performance using masked autoencoder (MAE) of ESM-C embeddings.*
 
 ---
+
+![MAE Model](./imgs/MLP(v4).png)
+
+---
 ## Conclusion
 
 - **Competitive Performance**: Our MAE-based approach demonstrates competitive performance against the established FG-based XGBoost baseline from literature

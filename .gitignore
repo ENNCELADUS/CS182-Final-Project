@@ -39,7 +39,6 @@ Thumbs.db *Zone.Identifier
 *.csv
 *.pkl
 *.pt
-*.pth
 
 *.zip
 *.tar

@@ -1,0 +1,277 @@
+(base) richard@richard-Lenovo-ThinkBook-16p-Gen-4:~/projects/CS182-Final-Project$ conda activate esm
+python src/mask_autoencoder/test_fixed_model.py
+🧪 TESTING FIXED PROTEIN INTERACTION MODEL
+============================================================
+Using device: cuda
+
+📁 Loading data...
+Script directory: /home/richard/projects/CS182-Final-Project/src/mask_autoencoder
+Project root: /home/richard/projects/CS182-Final-Project
+Loading data...
+Looking for data in: /home/richard/projects/CS182-Final-Project/data/full_dataset
+✅ Found: train_data.pkl
+✅ Found: validation_data.pkl
+✅ Found: test1_data.pkl
+✅ Found: test2_data.pkl
+✅ Found: embeddings_standardized.pkl
+
+Examining training data structure:
+DataFrame columns: ['uniprotID_A', 'uniprotID_B', 'isInteraction', 'trainTest', 'sequence_A', 'sequence_B']
+First row sample: {'uniprotID_A': 'O43759', 'uniprotID_B': 'P59991', 'isInteraction': 0, 'trainTest': 'train', 'sequence_A': 'MEGGAYGAGKAGGAFDPYTLVRQPHTILRVVSWLFSIVVFGSIVNEGYLNSASEGEEFCIYNRNPNACSYGVAVGVLAFLTCLLYLALDVYFPQISSVKDRKKAVLSDIGVSAFWAFLWFVGFCYLANQWQVSKPKDNPLNEGTDAARAAIAFSFFSIFTWAGQAVLAFQRYQIGADSALFSQDYMDPSQDSSMPYAPYVEPTGPDPAGMGGTYQQPANTFDTEPQGYQSQGY', 'sequence_B': 'MCHTSCSSGCQPACCAPSPCQPACCVPSSCQASCCVPVGCQSSVCVPVSFKPAVCLPVSCQSSVCVPMSFKSAVCVPVSCQSSVCVPVSCRPIVCAAPSCQSSLCVPVSCRPVVYAAPSCQSSGCCQPSCTSVLCRPISYSISSCC'}
+
+Loading protein embeddings...
+Loaded 12026 protein embeddings
+       uniprotID_A uniprotID_B  isInteraction trainTest                                         sequence_A                                         sequence_B
+100353      O43759      P59991              0     train  MEGGAYGAGKAGGAFDPYTLVRQPHTILRVVSWLFSIVVFGSIVNE...  MCHTSCSSGCQPACCAPSPCQPACCVPSSCQASCCVPVGCQSSVCV...
+118225      P54646      Q13671              0     train  MAEKQKHDGRVKIGHYVLGDTLGVGTFGKVKIGEHQLTGHKVAVKI...  MESPGESGAGSPGAPSPSSFTTGHLAREKPAQDPLYDVPNASGGQA...
+89464       O15344      Q9H9B1              0     train  METLESELTCPICLELFEDPLLLPCAHSLCFNCAHRILVSHCATNE...  MAAADAEAVPARGEPQQDCCVKTELLGEETPMAADEGSAEKQAGEA...
+90759       O14964      Q9NQM4              0     train  MGRGSGTFERLLDKATSQLLLETDWESILQICDLIRQGDTQAKYAV...  MESENMDSENMKTENMESQNVDFESVSSVTALEALSKLLNPEEEDD...
+126347      Q5VYS8      Q9NZL9              0     train  MGDTAKPYFVKRTKDRGTMDDDDFRRGHPQQDYLIIDDHAKGHGSK...  MVGREKELSIHFVPGSCRLVEEEVNIPNRRVLVTGATGLLGRAVHK...
+Protein ID: Q00994, Embedding shape: (113, 960)
+Protein ID: Q8TC90, Embedding shape: (408, 960)
+Protein ID: Q9UJY1, Embedding shape: (198, 960)
+Protein ID: Q9Y6Q6, Embedding shape: (618, 960)
+Protein ID: A4QMS7, Embedding shape: (149, 960)
+✅ Data loaded:
+   - Test1: 24898 samples
+   - Test2: 136939 samples
+   - Protein embeddings: 12026
+Loading model from: models/fixed_model_best.pth
+✅ Model loaded successfully!
+   - Model parameters: 411,649
+   - Training epoch: 20
+   - Validation AUC: 0.7830
+
+🧪 EVALUATING ON TEST1
+==================================================
+Using columns: Protein A = 'uniprotID_A', Protein B = 'uniprotID_B', Interaction = 'isInteraction'
+Dataset: 24898 valid pairs out of 24898 total pairs
+Dataset: 24898 samples
+Batches: 390
+  Processed batch 0/390
+  Processed batch 20/390
+  Processed batch 40/390
+  Processed batch 60/390
+  Processed batch 80/390
+  Processed batch 100/390
+  Processed batch 120/390
+  Processed batch 140/390
+  Processed batch 160/390
+  Processed batch 180/390
+  Processed batch 200/390
+  Processed batch 220/390
+  Processed batch 240/390
+  Processed batch 260/390
+  Processed batch 280/390
+  Processed batch 300/390
+  Processed batch 320/390
+  Processed batch 340/390
+  Processed batch 360/390
+  Processed batch 380/390
+
+📊 TEST1 RESULTS:
+Metric          Value     
+-------------------------
+Accuracy        0.6547
+Precision       0.6266
+Recall          0.7658
+F1 Score        0.6892
+ROC AUC         0.7283
+Specificity     0.5437
+Sensitivity     0.7658
+
+🔢 Class Distribution:
+  Class 0 (No Interaction): 12,449 (50.0%)
+  Class 1 (Interaction):    12,449 (50.0%)
+
+📋 Confusion Matrix:
+              Predicted
+             0     1
+Actual  0  6768  5681
+        1  2916  9533
+
+📈 Detailed Classification Report:
+                precision    recall  f1-score   support
+
+No Interaction       0.70      0.54      0.61     12449
+   Interaction       0.63      0.77      0.69     12449
+
+      accuracy                           0.65     24898
+     macro avg       0.66      0.65      0.65     24898
+  weighted avg       0.66      0.65      0.65     24898
+
+
+🧪 EVALUATING ON TEST2
+==================================================
+Using columns: Protein A = 'uniprotID_A', Protein B = 'uniprotID_B', Interaction = 'isInteraction'
+Dataset: 136939 valid pairs out of 136939 total pairs
+Dataset: 136939 samples
+Batches: 2140
+  Processed batch 0/2140
+  Processed batch 20/2140
+  Processed batch 40/2140
+  Processed batch 60/2140
+  Processed batch 80/2140
+  Processed batch 100/2140
+  Processed batch 120/2140
+  Processed batch 140/2140
+  Processed batch 160/2140
+  Processed batch 180/2140
+  Processed batch 200/2140
+  Processed batch 220/2140
+  Processed batch 240/2140
+  Processed batch 260/2140
+  Processed batch 280/2140
+  Processed batch 300/2140
+  Processed batch 320/2140
+  Processed batch 340/2140
+  Processed batch 360/2140
+  Processed batch 380/2140
+  Processed batch 400/2140
+  Processed batch 420/2140
+  Processed batch 440/2140
+  Processed batch 460/2140
+  Processed batch 480/2140
+  Processed batch 500/2140
+  Processed batch 520/2140
+  Processed batch 540/2140
+  Processed batch 560/2140
+  Processed batch 580/2140
+  Processed batch 600/2140
+  Processed batch 620/2140
+  Processed batch 640/2140
+  Processed batch 660/2140
+  Processed batch 680/2140
+  Processed batch 700/2140
+  Processed batch 720/2140
+  Processed batch 740/2140
+  Processed batch 760/2140
+  Processed batch 780/2140
+  Processed batch 800/2140
+  Processed batch 820/2140
+  Processed batch 840/2140
+  Processed batch 860/2140
+  Processed batch 880/2140
+  Processed batch 900/2140
+  Processed batch 920/2140
+  Processed batch 940/2140
+  Processed batch 960/2140
+  Processed batch 980/2140
+  Processed batch 1000/2140
+  Processed batch 1020/2140
+  Processed batch 1040/2140
+  Processed batch 1060/2140
+  Processed batch 1080/2140
+  Processed batch 1100/2140
+  Processed batch 1120/2140
+  Processed batch 1140/2140
+  Processed batch 1160/2140
+  Processed batch 1180/2140
+  Processed batch 1200/2140
+  Processed batch 1220/2140
+  Processed batch 1240/2140
+  Processed batch 1260/2140
+  Processed batch 1280/2140
+  Processed batch 1300/2140
+  Processed batch 1320/2140
+  Processed batch 1340/2140
+  Processed batch 1360/2140
+  Processed batch 1380/2140
+  Processed batch 1400/2140
+  Processed batch 1420/2140
+  Processed batch 1440/2140
+  Processed batch 1460/2140
+  Processed batch 1480/2140
+  Processed batch 1500/2140
+  Processed batch 1520/2140
+  Processed batch 1540/2140
+  Processed batch 1560/2140
+  Processed batch 1580/2140
+  Processed batch 1600/2140
+  Processed batch 1620/2140
+  Processed batch 1640/2140
+  Processed batch 1660/2140
+  Processed batch 1680/2140
+  Processed batch 1700/2140
+  Processed batch 1720/2140
+  Processed batch 1740/2140
+  Processed batch 1760/2140
+  Processed batch 1780/2140
+  Processed batch 1800/2140
+  Processed batch 1820/2140
+  Processed batch 1840/2140
+  Processed batch 1860/2140
+  Processed batch 1880/2140
+  Processed batch 1900/2140
+  Processed batch 1920/2140
+  Processed batch 1940/2140
+  Processed batch 1960/2140
+  Processed batch 1980/2140
+  Processed batch 2000/2140
+  Processed batch 2020/2140
+  Processed batch 2040/2140
+  Processed batch 2060/2140
+  Processed batch 2080/2140
+  Processed batch 2100/2140
+  Processed batch 2120/2140
+
+📊 TEST2 RESULTS:
+Metric          Value     
+-------------------------
+Accuracy        0.5670
+Precision       0.1436
+Recall          0.7581
+F1 Score        0.2414
+ROC AUC         0.7242
+Specificity     0.5479
+Sensitivity     0.7581
+
+🔢 Class Distribution:
+  Class 0 (No Interaction): 124,490 (90.9%)
+  Class 1 (Interaction):    12,449 (9.1%)
+
+📋 Confusion Matrix:
+              Predicted
+             0     1
+Actual  0  68202  56288
+        1  3012  9437
+
+📈 Detailed Classification Report:
+                precision    recall  f1-score   support
+
+No Interaction       0.96      0.55      0.70    124490
+   Interaction       0.14      0.76      0.24     12449
+
+      accuracy                           0.57    136939
+     macro avg       0.55      0.65      0.47    136939
+  weighted avg       0.88      0.57      0.66    136939
+
+
+🏆 FINAL COMPARISON SUMMARY
+============================================================
+Metric          Test1      Test2      Difference  
+--------------------------------------------------
+Accuracy        0.6547     0.5670     +0.0878     
+Precision       0.6266     0.1436     +0.4830     
+Recall          0.7658     0.7581     +0.0077     
+F1              0.6892     0.2414     +0.4478     
+Auc             0.7283     0.7242     +0.0041     
+Specificity     0.5437     0.5479     -0.0042     
+
+Test1 performs better on 5/6 metrics
+Test2 performs better on 1/6 metrics
+
+📊 CREATING VISUALIZATIONS
+==============================
+✅ Visualizations saved:
+   - plots/fixed_model_comparison.png
+   - plots/fixed_model_metrics_comparison.png
+
+✅ TESTING COMPLETED!
+📁 Detailed results saved to: test_results/fixed_model_evaluation_20250604_135649.json
+📊 Visualizations saved to: plots/
+
+🎯 KEY TAKEAWAYS:
+   - Average AUC across test sets: 0.7263
+   - Model shows consistent performance
+   - Best performing dataset: Test1
