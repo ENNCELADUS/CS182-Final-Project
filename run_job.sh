@@ -41,4 +41,4 @@ for i in range(torch.cuda.device_count()):
 echo ""
 echo "=== STARTING TRAINING ==="
 
-python src/mask_autoencoder/v4.py
+python src/mask_autoencoder/comprehensive_model_comparison_with_saving.py
