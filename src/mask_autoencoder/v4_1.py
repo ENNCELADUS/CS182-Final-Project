@@ -13,7 +13,7 @@ matplotlib.use('Agg')
 import gc
 import pickle
 from tqdm import tqdm
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score, average_precision_score, roc_curve, precision_recall_curve
 import math
 
 # First, let's examine the data structure to identify column names
@@ -547,5 +547,483 @@ def train_model(model, train_loader, val_loader, num_epochs=20, lr=5e-3, device=
     
     print(f'Training completed! Best validation AUC: {best_val_auc:.4f}')
     return history, best_val_auc
+
+
+def main():
+    """
+    Main function to train protein interaction models
+    """
+    print("🚀 Starting Protein Interaction Model Training")
+    print("=" * 60)
+    
+    # Configuration
+    config = {
+        'batch_size': 32,
+        'num_epochs': 25,
+        'learning_rate': 3e-3,
+        'hidden_dim': 256,
+        'dropout': 0.3,
+        'device': 'cuda' if torch.cuda.is_available() else 'cpu'
+    }
+    
+    print(f"Configuration: {config}")
+    print(f"Using device: {config['device']}")
+    
+    # Load data
+    print("\n📂 Loading data...")
+    try:
+        train_data, cv_data, test1_data, test2_data, protein_embeddings = load_data()
+        print(f"✅ Data loaded successfully!")
+        print(f"   Train samples: {len(train_data)}")
+        print(f"   Validation samples: {len(cv_data)}")
+        print(f"   Test1 samples: {len(test1_data)}")
+        print(f"   Test2 samples: {len(test2_data)}")
+        print(f"   Protein embeddings: {len(protein_embeddings)}")
+    except Exception as e:
+        print(f"❌ Error loading data: {e}")
+        return
+    
+    # Create datasets
+    print("\n📊 Creating datasets...")
+    try:
+        train_dataset = ProteinPairDataset(train_data, protein_embeddings)
+        val_dataset = ProteinPairDataset(cv_data, protein_embeddings)
+        test1_dataset = ProteinPairDataset(test1_data, protein_embeddings)
+        test2_dataset = ProteinPairDataset(test2_data, protein_embeddings)
+        
+        print(f"✅ Datasets created successfully!")
+        print(f"   Train dataset: {len(train_dataset)} valid pairs")
+        print(f"   Validation dataset: {len(val_dataset)} valid pairs")
+        print(f"   Test1 dataset: {len(test1_dataset)} valid pairs")
+        print(f"   Test2 dataset: {len(test2_dataset)} valid pairs")
+    except Exception as e:
+        print(f"❌ Error creating datasets: {e}")
+        return
+    
+    # Create data loaders
+    print("\n🔄 Creating data loaders...")
+    train_loader = DataLoader(
+        train_dataset, 
+        batch_size=config['batch_size'], 
+        shuffle=True, 
+        collate_fn=collate_fn,
+        num_workers=2,
+        pin_memory=True if config['device'] == 'cuda' else False
+    )
+    val_loader = DataLoader(
+        val_dataset, 
+        batch_size=config['batch_size'], 
+        shuffle=False, 
+        collate_fn=collate_fn,
+        num_workers=2,
+        pin_memory=True if config['device'] == 'cuda' else False
+    )
+    test1_loader = DataLoader(
+        test1_dataset, 
+        batch_size=config['batch_size'], 
+        shuffle=False, 
+        collate_fn=collate_fn,
+        num_workers=2,
+        pin_memory=True if config['device'] == 'cuda' else False
+    )
+    test2_loader = DataLoader(
+        test2_dataset, 
+        batch_size=config['batch_size'], 
+        shuffle=False, 
+        collate_fn=collate_fn,
+        num_workers=2,
+        pin_memory=True if config['device'] == 'cuda' else False
+    )
+    
+    print(f"✅ Data loaders created!")
+    print(f"   Train batches: {len(train_loader)}")
+    print(f"   Validation batches: {len(val_loader)}")
+    
+    # Models to train
+    models_to_train = {
+        # 'SimplifiedProteinClassifier': {
+        #     'type': 'simple',
+        #     'params': {
+        #         'hidden_dim': config['hidden_dim'],
+        #         'dropout': config['dropout']
+        #     }
+        # },
+        'TransformerEnhancedProteinClassifier': {
+            'type': 'enhanced',
+            'params': {
+                'hidden_dim': config['hidden_dim'],
+                'num_transformer_layers': 2,
+                'num_heads': 8,
+                'dropout': config['dropout']
+            }
+        }
+    }
+    
+    # Train each model
+    results = {}
+    
+    for model_name, model_config in models_to_train.items():
+        print(f"\n🧠 Training {model_name}")
+        print("=" * (10 + len(model_name)))
+        
+        try:
+            # Create model
+            model = create_model(model_config['type'], **model_config['params'])
+            print(f"📋 Model created with {sum(p.numel() for p in model.parameters()):,} parameters")
+            
+            # Train model
+            history, best_val_auc = train_model(
+                model=model,
+                train_loader=train_loader,
+                val_loader=val_loader,
+                num_epochs=config['num_epochs'],
+                lr=config['learning_rate'],
+                device=config['device']
+            )
+            
+            # Store results
+            results[model_name] = {
+                'model': model,
+                'history': history,
+                'best_val_auc': best_val_auc
+            }
+            
+            # Save model
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            model_path = f"models/{model_name}_{timestamp}_auc{best_val_auc:.4f}.pt"
+            os.makedirs("models", exist_ok=True)
+            
+            torch.save({
+                'model_state_dict': model.state_dict(),
+                'model_config': model_config,
+                'best_val_auc': best_val_auc,
+                'history': history,
+                'training_config': config
+            }, model_path)
+            
+            print(f"💾 Model saved to: {model_path}")
+            
+        except Exception as e:
+            print(f"❌ Error training {model_name}: {e}")
+            continue
+    
+    # Compare results
+    print(f"\n📊 Training Results Summary")
+    print("=" * 50)
+    
+    for model_name, result in results.items():
+        print(f"{model_name}:")
+        print(f"  Best Validation AUC: {result['best_val_auc']:.4f}")
+        
+        # Show final epoch metrics
+        final_metrics = result['history'][-1]
+        print(f"  Final Train AUC: {final_metrics['train_auc']:.4f}")
+        print(f"  Final Val F1: {final_metrics['val_f1']:.4f}")
+        print(f"  Final Val Accuracy: {final_metrics['val_acc']:.4f}")
+        print()
+    
+    # Evaluate on test sets
+    print(f"\n🧪 Evaluating on Test Sets")
+    print("=" * 40)
+    
+    test_results = {}
+    
+    for model_name, result in results.items():
+        print(f"\n{model_name} Test Results:")
+        print("-" * (len(model_name) + 14))
+        
+        model = result['model']
+        model.eval()
+        
+        test_results[model_name] = {}
+        
+        # Test on both test sets
+        for test_name, test_loader in [('Test1', test1_loader), ('Test2', test2_loader)]:
+            test_preds = []
+            test_probs = []
+            test_labels = []
+            
+            with torch.no_grad():
+                for emb_a, emb_b, lengths_a, lengths_b, interactions in test_loader:
+                    emb_a = emb_a.to(config['device']).float()
+                    emb_b = emb_b.to(config['device']).float()
+                    lengths_a = lengths_a.to(config['device'])
+                    lengths_b = lengths_b.to(config['device'])
+                    interactions = interactions.to(config['device']).float()
+                    
+                    logits = model(emb_a, emb_b, lengths_a, lengths_b)
+                    if logits.dim() > 1:
+                        logits = logits.squeeze(-1)
+                    
+                    probs = torch.sigmoid(logits)
+                    preds = (probs > 0.5).float()
+                    
+                    test_preds.extend(preds.cpu().numpy())
+                    test_probs.extend(probs.cpu().numpy())
+                    test_labels.extend(interactions.cpu().numpy())
+            
+            # Calculate metrics
+            test_acc = accuracy_score(test_labels, test_preds)
+            test_auroc = roc_auc_score(test_labels, test_probs)
+            test_auprc = average_precision_score(test_labels, test_probs)
+            test_f1 = f1_score(test_labels, test_preds)
+            test_precision = precision_score(test_labels, test_preds)
+            test_recall = recall_score(test_labels, test_preds)
+            
+            # Store results for plotting
+            test_results[model_name][test_name] = {
+                'labels': test_labels,
+                'probs': test_probs,
+                'preds': test_preds,
+                'auroc': test_auroc,
+                'auprc': test_auprc,
+                'accuracy': test_acc,
+                'f1': test_f1,
+                'precision': test_precision,
+                'recall': test_recall
+            }
+            
+            print(f"  {test_name} - AUROC: {test_auroc:.4f}, AUPRC: {test_auprc:.4f}, Acc: {test_acc:.4f}, F1: {test_f1:.4f}, "
+                  f"Prec: {test_precision:.4f}, Rec: {test_recall:.4f}")
+    
+    # Plot training curves
+    print(f"\n📈 Generating training plots...")
+    try:
+        plot_training_curves(results)
+        print("✅ Training plots saved!")
+    except Exception as e:
+        print(f"⚠️ Could not generate plots: {e}")
+    
+    # Plot test set AUROC and AUPRC curves
+    print(f"\n📊 Generating test set ROC and PR curves...")
+    try:
+        plot_test_curves(test_results)
+        print("✅ Test set curves saved!")
+    except Exception as e:
+        print(f"⚠️ Could not generate test plots: {e}")
+    
+    print(f"\n🎉 Training completed successfully!")
+    return results
+
+
+def plot_training_curves(results):
+    """Plot training curves for comparison"""
+    
+    fig, axes = plt.subplots(2, 2, figsize=(15, 10))
+    fig.suptitle('Training Curves Comparison', fontsize=16)
+    
+    colors = ['blue', 'red', 'green', 'orange']
+    
+    for i, (model_name, result) in enumerate(results.items()):
+        history = result['history']
+        epochs = [h['epoch'] for h in history]
+        
+        color = colors[i % len(colors)]
+        
+        # Training and validation loss
+        train_losses = [h['train_loss'] for h in history]
+        val_losses = [h['val_loss'] for h in history]
+        axes[0, 0].plot(epochs, train_losses, f'{color}-', label=f'{model_name} Train', alpha=0.7)
+        axes[0, 0].plot(epochs, val_losses, f'{color}--', label=f'{model_name} Val', alpha=0.7)
+        
+        # Training and validation AUC
+        train_aucs = [h['train_auc'] for h in history]
+        val_aucs = [h['val_auc'] for h in history]
+        axes[0, 1].plot(epochs, train_aucs, f'{color}-', label=f'{model_name} Train', alpha=0.7)
+        axes[0, 1].plot(epochs, val_aucs, f'{color}--', label=f'{model_name} Val', alpha=0.7)
+        
+        # Validation F1 and Accuracy
+        val_f1s = [h['val_f1'] for h in history]
+        val_accs = [h['val_acc'] for h in history]
+        axes[1, 0].plot(epochs, val_f1s, f'{color}-', label=f'{model_name} F1', alpha=0.7)
+        axes[1, 1].plot(epochs, val_accs, f'{color}-', label=f'{model_name} Acc', alpha=0.7)
+    
+    # Customize plots
+    axes[0, 0].set_title('Loss')
+    axes[0, 0].set_xlabel('Epoch')
+    axes[0, 0].set_ylabel('Loss')
+    axes[0, 0].legend()
+    axes[0, 0].grid(True, alpha=0.3)
+    
+    axes[0, 1].set_title('AUC')
+    axes[0, 1].set_xlabel('Epoch')
+    axes[0, 1].set_ylabel('AUC')
+    axes[0, 1].legend()
+    axes[0, 1].grid(True, alpha=0.3)
+    
+    axes[1, 0].set_title('Validation F1')
+    axes[1, 0].set_xlabel('Epoch')
+    axes[1, 0].set_ylabel('F1 Score')
+    axes[1, 0].legend()
+    axes[1, 0].grid(True, alpha=0.3)
+    
+    axes[1, 1].set_title('Validation Accuracy')
+    axes[1, 1].set_xlabel('Epoch')
+    axes[1, 1].set_ylabel('Accuracy')
+    axes[1, 1].legend()
+    axes[1, 1].grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    
+    # Save plot
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    plot_path = f"training_curves_{timestamp}.png"
+    plt.savefig(plot_path, dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    print(f"📊 Training curves saved to: {plot_path}")
+
+
+def plot_test_curves(test_results):
+    """Plot ROC and Precision-Recall curves for test sets"""
+    
+    # Create subplots for ROC and PR curves
+    fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+    fig.suptitle('Test Set Performance: ROC and Precision-Recall Curves', fontsize=16)
+    
+    colors = ['blue', 'red', 'green', 'orange', 'purple', 'brown']
+    line_styles = ['-', '--', '-.', ':']
+    
+    # Plot ROC curves
+    axes[0, 0].set_title('ROC Curves - Test1')
+    axes[0, 1].set_title('ROC Curves - Test2')
+    axes[1, 0].set_title('Precision-Recall Curves - Test1')
+    axes[1, 1].set_title('Precision-Recall Curves - Test2')
+    
+    model_idx = 0
+    for model_name, model_results in test_results.items():
+        color = colors[model_idx % len(colors)]
+        
+        for test_idx, (test_name, test_data) in enumerate(model_results.items()):
+            line_style = line_styles[test_idx % len(line_styles)]
+            
+            # Get test data
+            y_true = np.array(test_data['labels'])
+            y_scores = np.array(test_data['probs'])
+            auroc = test_data['auroc']
+            auprc = test_data['auprc']
+            
+            # Calculate ROC curve
+            fpr, tpr, _ = roc_curve(y_true, y_scores)
+            
+            # Calculate PR curve
+            precision, recall, _ = precision_recall_curve(y_true, y_scores)
+            
+            # Plot ROC curves
+            if test_name == 'Test1':
+                axes[0, 0].plot(fpr, tpr, color=color, linestyle=line_style, linewidth=2,
+                               label=f'{model_name} (AUROC={auroc:.4f})')
+            else:  # Test2
+                axes[0, 1].plot(fpr, tpr, color=color, linestyle=line_style, linewidth=2,
+                               label=f'{model_name} (AUROC={auroc:.4f})')
+            
+            # Plot PR curves
+            if test_name == 'Test1':
+                axes[1, 0].plot(recall, precision, color=color, linestyle=line_style, linewidth=2,
+                               label=f'{model_name} (AUPRC={auprc:.4f})')
+            else:  # Test2
+                axes[1, 1].plot(recall, precision, color=color, linestyle=line_style, linewidth=2,
+                               label=f'{model_name} (AUPRC={auprc:.4f})')
+        
+        model_idx += 1
+    
+    # Add diagonal lines for ROC plots (random classifier)
+    for i in range(2):
+        axes[0, i].plot([0, 1], [0, 1], 'k--', alpha=0.5, label='Random Classifier')
+        axes[0, i].set_xlim([0.0, 1.0])
+        axes[0, i].set_ylim([0.0, 1.05])
+        axes[0, i].set_xlabel('False Positive Rate')
+        axes[0, i].set_ylabel('True Positive Rate')
+        axes[0, i].legend(loc="lower right")
+        axes[0, i].grid(True, alpha=0.3)
+    
+    # Add baseline for PR plots (random classifier based on class distribution)
+    for i, test_name in enumerate(['Test1', 'Test2']):
+        # Get class distribution for baseline
+        for model_results in test_results.values():
+            if test_name in model_results:
+                y_true = np.array(model_results[test_name]['labels'])
+                baseline_precision = np.mean(y_true)
+                axes[1, i].axhline(y=baseline_precision, color='k', linestyle='--', alpha=0.5, 
+                                  label=f'Random Classifier ({baseline_precision:.3f})')
+                break
+        
+        axes[1, i].set_xlim([0.0, 1.0])
+        axes[1, i].set_ylim([0.0, 1.05])
+        axes[1, i].set_xlabel('Recall')
+        axes[1, i].set_ylabel('Precision')
+        axes[1, i].legend(loc="lower left")
+        axes[1, i].grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    
+    # Save plot
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    plot_path = f"test_roc_pr_curves_{timestamp}.png"
+    plt.savefig(plot_path, dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    print(f"📊 Test ROC and PR curves saved to: {plot_path}")
+    
+    # Also create a summary metrics bar plot
+    plot_test_metrics_summary(test_results)
+
+
+def plot_test_metrics_summary(test_results):
+    """Create a summary bar plot of test metrics"""
+    
+    fig, axes = plt.subplots(2, 2, figsize=(16, 10))
+    fig.suptitle('Test Set Metrics Summary', fontsize=16)
+    
+    # Prepare data for plotting
+    models = list(test_results.keys())
+    test_sets = ['Test1', 'Test2']
+    
+    metrics = ['auroc', 'auprc', 'f1', 'accuracy']
+    metric_names = ['AUROC', 'AUPRC', 'F1 Score', 'Accuracy']
+    
+    x = np.arange(len(models))
+    width = 0.35
+    
+    for i, (metric, metric_name) in enumerate(zip(metrics, metric_names)):
+        ax = axes[i // 2, i % 2]
+        
+        test1_values = [test_results[model]['Test1'][metric] for model in models]
+        test2_values = [test_results[model]['Test2'][metric] for model in models]
+        
+        bars1 = ax.bar(x - width/2, test1_values, width, label='Test1', alpha=0.8, color='skyblue')
+        bars2 = ax.bar(x + width/2, test2_values, width, label='Test2', alpha=0.8, color='lightcoral')
+        
+        ax.set_xlabel('Model')
+        ax.set_ylabel(metric_name)
+        ax.set_title(f'{metric_name} Comparison')
+        ax.set_xticks(x)
+        ax.set_xticklabels([name.replace('ProteinClassifier', '') for name in models], rotation=45, ha='right')
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+        
+        # Add value labels on bars
+        for bars in [bars1, bars2]:
+            for bar in bars:
+                height = bar.get_height()
+                ax.annotate(f'{height:.3f}',
+                           xy=(bar.get_x() + bar.get_width() / 2, height),
+                           xytext=(0, 3),  # 3 points vertical offset
+                           textcoords="offset points",
+                           ha='center', va='bottom', fontsize=10)
+    
+    plt.tight_layout()
+    
+    # Save plot
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    plot_path = f"test_metrics_summary_{timestamp}.png"
+    plt.savefig(plot_path, dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    print(f"📊 Test metrics summary saved to: {plot_path}")
+
+
+if __name__ == "__main__":
+    main()
 
 
