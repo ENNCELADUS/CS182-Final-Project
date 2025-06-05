@@ -13,8 +13,21 @@ matplotlib.use('Agg')
 import gc
 import pickle
 from tqdm import tqdm
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score, average_precision_score, roc_curve, precision_recall_curve
 import math
+
+def sinusoid_encoding_table(max_len, d_model):
+    """Create sinusoidal positional encoding table"""
+    pe = torch.zeros(max_len, d_model).float()
+    position = torch.arange(0, max_len).unsqueeze(1).float()
+    
+    div_term = torch.exp(torch.arange(0, d_model, 2).float() * 
+                        -(math.log(10000.0) / d_model))
+    
+    pe[:, 0::2] = torch.sin(position * div_term)
+    pe[:, 1::2] = torch.cos(position * div_term)
+    
+    return pe.unsqueeze(0)  # (1, max_len, d_model)
 
 # First, let's examine the data structure to identify column names
 def examine_dataframe(df):
@@ -227,31 +240,42 @@ def collate_fn(batch):
 
 class TransformerEnhancedProteinClassifier(nn.Module):
     """
-    Enhanced version of SimplifiedProteinClassifier with transformer layers
-    Based on the proven architecture but with added attention mechanism
+    Fixed version of TransformerEnhancedProteinClassifier with:
+    1. Learnable CLS token and sinusoidal positional encoding
+    2. Standard initialization + norm_first=False
+    3. Larger feedforward dimension (4x)
+    4. No manual gradient scaling (handled by optimizer)
     """
     def __init__(self, input_dim=960, hidden_dim=256, num_transformer_layers=2, 
                  num_heads=8, dropout=0.3):
         super().__init__()
+        self.debug_forward = False
+        self.hidden_dim = hidden_dim
+        self.input_dim = input_dim
+        
+        # ① Add learnable CLS token and sinusoidal position encoding
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, input_dim))
+        self.max_position_embeddings = 2048  # Support longer sequences
+        self.register_buffer('pos_encoding',
+                             sinusoid_encoding_table(self.max_position_embeddings, input_dim),
+                             persistent=False)
         
         # Initial projection to hidden dimension
         self.input_projection = nn.Linear(input_dim, hidden_dim)
         
-        # Transformer encoder layers for sequence modeling
-        # FIX: Use standard transformer settings to avoid negative bias
+        # ② Use standard init + no norm_first + larger feedforward
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=hidden_dim,
             nhead=num_heads,
-            dim_feedforward=hidden_dim * 2,
+            dim_feedforward=hidden_dim * 4,  # Increased from 2x to 4x
             dropout=dropout,
-            activation='relu',
+            activation='gelu',  # Changed from relu to gelu
             batch_first=True,
-            norm_first=False  # Changed from True to False to fix output bias
+            norm_first=False  # Reverted from True to False
         )
         self.transformer_encoder = nn.TransformerEncoder(
             encoder_layer, 
             num_layers=num_transformer_layers
-            # Removed extra LayerNorm that was causing issues
         )
         
         # Keep the proven protein encoder structure after transformer
@@ -275,13 +299,27 @@ class TransformerEnhancedProteinClassifier(nn.Module):
             nn.Linear(hidden_dim // 2, 1)
         )
         
-        # Better weight initialization
+        # Standard weight initialization
         self.apply(self._init_weights)
+        
+        # Store architecture details for debugging
+        self._architecture_info = {
+            'input_dim': input_dim,
+            'hidden_dim': hidden_dim,
+            'num_transformer_layers': num_transformer_layers,
+            'num_heads': num_heads,
+            'dropout': dropout,
+            'feedforward_dim': hidden_dim * 4,
+            'norm_first': False,
+            'activation': 'gelu',
+            'has_cls_token': True,
+            'has_positional_encoding': True
+        }
     
     def _init_weights(self, module):
         if isinstance(module, nn.Linear):
-            # FIX: Use more conservative initialization for better stability
-            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+            # Use standard Xavier initialization instead of tiny std
+            torch.nn.init.xavier_uniform_(module.weight)
             if module.bias is not None:
                 torch.nn.init.zeros_(module.bias)
         elif isinstance(module, nn.LayerNorm):
@@ -296,37 +334,89 @@ class TransformerEnhancedProteinClassifier(nn.Module):
             lengths_a: (B,) actual lengths for protein A
             lengths_b: (B,) actual lengths for protein B
         """
+        B, La, _ = emb_a.shape
+        B, Lb, _ = emb_b.shape
         device = emb_a.device
         
+        # Prepend CLS token and add positional encoding
+        emb_a = torch.cat([self.cls_token.expand(B, -1, -1), emb_a], dim=1)  # (B, La+1, 960)
+        emb_b = torch.cat([self.cls_token.expand(B, -1, -1), emb_b], dim=1)  # (B, Lb+1, 960)
+        
+        # Add positional encoding with bounds checking
+        max_len_a = min(La+1, self.max_position_embeddings)
+        max_len_b = min(Lb+1, self.max_position_embeddings)
+        
+        # Warn if sequences exceed positional encoding length (only during debug)
+        if self.debug_forward and (La+1 > self.max_position_embeddings or Lb+1 > self.max_position_embeddings):
+            print(f"  WARNING: Sequence length exceeds max_position_embeddings ({self.max_position_embeddings})")
+            print(f"    Protein A: {La+1}, Protein B: {Lb+1}")
+        
+        pos_slice_a = self.pos_encoding[:, :max_len_a]  # (1, max_len_a, 960)
+        pos_slice_b = self.pos_encoding[:, :max_len_b]  # (1, max_len_b, 960)
+        
+        # Only add positional encoding to the parts we have encoding for
+        emb_a[:, :max_len_a] = emb_a[:, :max_len_a] + pos_slice_a
+        emb_b[:, :max_len_b] = emb_b[:, :max_len_b] + pos_slice_b
+        
+        # If sequences are longer than max_position_embeddings, the remaining positions
+        # will not have positional encoding (which is still better than crashing)
+        
         # Project to hidden dimension
-        emb_a_proj = self.input_projection(emb_a)  # (B, L_a, hidden_dim)
-        emb_b_proj = self.input_projection(emb_b)  # (B, L_b, hidden_dim)
+        emb_a_proj = self.input_projection(emb_a)  # (B, La+1, hidden_dim)
+        emb_b_proj = self.input_projection(emb_b)  # (B, Lb+1, hidden_dim)
         
-        # Create attention masks (True for padding positions)
-        max_len_a = emb_a.size(1)
-        max_len_b = emb_b.size(1)
+        if self.debug_forward:
+            print(f"  DEBUG: emb_a_proj - mean: {emb_a_proj.mean():.4f}, std: {emb_a_proj.std():.4f}, min: {emb_a_proj.min():.4f}, max: {emb_a_proj.max():.4f}")
+            print(f"  DEBUG: emb_b_proj - mean: {emb_b_proj.mean():.4f}, std: {emb_b_proj.std():.4f}, min: {emb_b_proj.min():.4f}, max: {emb_b_proj.max():.4f}")
         
-        mask_a = torch.arange(max_len_a, device=device).unsqueeze(0) >= lengths_a.unsqueeze(1)
-        mask_b = torch.arange(max_len_b, device=device).unsqueeze(0) >= lengths_b.unsqueeze(1)
+        # Build padding masks (shifted by 1 because of CLS token)
+        mask_a = torch.arange(La+1, device=device).unsqueeze(0) >= (lengths_a+1).unsqueeze(1)
+        mask_b = torch.arange(Lb+1, device=device).unsqueeze(0) >= (lengths_b+1).unsqueeze(1)
         
         # Apply transformer encoder with attention masks
-        emb_a_transformed = self.transformer_encoder(emb_a_proj, src_key_padding_mask=mask_a)
-        emb_b_transformed = self.transformer_encoder(emb_b_proj, src_key_padding_mask=mask_b)
+        z_a = self.transformer_encoder(emb_a_proj, src_key_padding_mask=mask_a)
+        z_b = self.transformer_encoder(emb_b_proj, src_key_padding_mask=mask_b)
+
+        if self.debug_forward:
+            print(f"  DEBUG: emb_a_transformed - mean: {z_a.mean():.4f}, std: {z_a.std():.4f}, min: {z_a.min():.4f}, max: {z_a.max():.4f}")
+            print(f"  DEBUG: emb_b_transformed - mean: {z_b.mean():.4f}, std: {z_b.std():.4f}, min: {z_b.min():.4f}, max: {z_b.max():.4f}")
+            # Additional statistics for transformer effectiveness
+            std_change_a = z_a.std() / emb_a_proj.std()
+            std_change_b = z_b.std() / emb_b_proj.std()
+            print(f"  DEBUG: Transformer std amplification - A: {std_change_a:.4f}, B: {std_change_b:.4f}")
         
-        # Average pooling with mask (same as proven approach)
-        mask_a_float = ~mask_a  # Convert to actual sequence mask (False for padding)
-        mask_b_float = ~mask_b
-        
-        emb_a_avg = (emb_a_transformed * mask_a_float.unsqueeze(-1).float()).sum(dim=1) / lengths_a.unsqueeze(-1).float()
-        emb_b_avg = (emb_b_transformed * mask_b_float.unsqueeze(-1).float()).sum(dim=1) / lengths_b.unsqueeze(-1).float()
+        # Take CLS token only (index 0)
+        emb_a_avg = z_a[:, 0]  # (B, hidden_dim)
+        emb_b_avg = z_b[:, 0]  # (B, hidden_dim)
+
+        if self.debug_forward:
+            print(f"  DEBUG: emb_a_avg (CLS) - mean: {emb_a_avg.mean():.4f}, std: {emb_a_avg.std():.4f}, min: {emb_a_avg.min():.4f}, max: {emb_a_avg.max():.4f}")
+            print(f"  DEBUG: emb_b_avg (CLS) - mean: {emb_b_avg.mean():.4f}, std: {emb_b_avg.std():.4f}, min: {emb_b_avg.min():.4f}, max: {emb_b_avg.max():.4f}")
         
         # Use the proven encoder and interaction layers
         enc_a = self.protein_encoder(emb_a_avg)  # (B, hidden_dim)
         enc_b = self.protein_encoder(emb_b_avg)  # (B, hidden_dim)
+
+        if self.debug_forward:
+            print(f"  DEBUG: enc_a - mean: {enc_a.mean():.4f}, std: {enc_a.std():.4f}, min: {enc_a.min():.4f}, max: {enc_a.max():.4f}")
+            print(f"  DEBUG: enc_b - mean: {enc_b.mean():.4f}, std: {enc_b.std():.4f}, min: {enc_b.min():.4f}, max: {enc_b.max():.4f}")
+            # Check for ReLU saturation
+            zero_frac_a = (enc_a == 0).float().mean()
+            zero_frac_b = (enc_b == 0).float().mean()
+            print(f"  DEBUG: ReLU zero fraction - A: {zero_frac_a:.4f}, B: {zero_frac_b:.4f}")
         
         # Combine and predict interaction (exactly as before)
         combined = torch.cat([enc_a, enc_b], dim=-1)  # (B, 2*hidden_dim)
         logits = self.interaction_layer(combined)  # (B, 1)
+
+        if self.debug_forward:
+            print(f"  DEBUG: logits - mean: {logits.mean():.4f}, std: {logits.std():.4f}, min: {logits.min():.4f}, max: {logits.max():.4f}")
+            # Check logits magnitude for learning signal
+            logits_magnitude = logits.abs().mean()
+            print(f"  DEBUG: logits magnitude: {logits_magnitude:.4f} (should be > 0.1 for good learning)")
+            # Expected sigmoid range
+            sigmoid_mean = torch.sigmoid(logits).mean()
+            print(f"  DEBUG: sigmoid(logits) mean: {sigmoid_mean:.4f} (should deviate from 0.5 for learning)")
         
         return logits
 
@@ -418,7 +508,7 @@ def create_model(model_type='enhanced', **kwargs):
 
 
 # Training utilities
-def train_model(model, train_loader, val_loader, num_epochs=20, lr=5e-3, device='cuda'):
+def train_model(model, train_loader, val_loader, num_epochs=20, lr=5e-3, device='cuda', debug_mode=False):
     """
     Train a protein interaction model with the proven training setup
     
@@ -429,13 +519,24 @@ def train_model(model, train_loader, val_loader, num_epochs=20, lr=5e-3, device=
         num_epochs: Number of epochs to train
         lr: Learning rate
         device: Device to train on
+        debug_mode: Whether to enable debug mode
     """
     print(f"Training model with {sum(p.numel() for p in model.parameters()):,} parameters")
     
     model = model.to(device)
     
-    # Use the proven training setup
-    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=0.01)
+    # ③ Use different learning rates for transformer vs other parameters
+    transformer_params = [p for n, p in model.named_parameters() if 'transformer_encoder' in n]
+    other_params = [p for n, p in model.named_parameters() if 'transformer_encoder' not in n]
+    
+    if transformer_params:
+        optimizer = torch.optim.AdamW([
+            {'params': other_params, 'lr': lr},
+            {'params': transformer_params, 'lr': lr}  # Same LR initially
+        ], betas=(0.9, 0.98), weight_decay=0.01)
+    else:
+        optimizer = torch.optim.AdamW(model.parameters(), lr=lr, betas=(0.9, 0.98), weight_decay=0.01)
+
     scheduler = torch.optim.lr_scheduler.OneCycleLR(
         optimizer, 
         max_lr=lr, 
@@ -448,6 +549,45 @@ def train_model(model, train_loader, val_loader, num_epochs=20, lr=5e-3, device=
     best_val_auc = 0
     history = []
     
+    # Enable debug for the model if applicable
+    if debug_mode and hasattr(model, 'debug_forward'):
+        print("  ⚠️ DEBUG MODE: Enabling comprehensive debugging for the model.")
+        model.debug_forward = True
+        
+        # Print detailed architecture information
+        if hasattr(model, '_architecture_info'):
+            print("  📋 Model Architecture Details:")
+            arch = model._architecture_info
+            print(f"    Input dimension: {arch['input_dim']}")
+            print(f"    Hidden dimension: {arch['hidden_dim']}")
+            print(f"    Transformer layers: {arch['num_transformer_layers']}")
+            print(f"    Attention heads: {arch['num_heads']}")
+            print(f"    Feedforward dimension: {arch['feedforward_dim']} ({arch['feedforward_dim']//arch['hidden_dim']}x hidden)")
+            print(f"    Activation: {arch['activation']}")
+            print(f"    Norm first: {arch['norm_first']}")
+            print(f"    Dropout: {arch['dropout']}")
+            print(f"    Has CLS token: {arch['has_cls_token']}")
+            print(f"    Has positional encoding: {arch['has_positional_encoding']}")
+            
+        # Print parameter counts by component
+        total_params = sum(p.numel() for p in model.parameters())
+        transformer_params = sum(p.numel() for n, p in model.named_parameters() if 'transformer_encoder' in n)
+        other_params = total_params - transformer_params
+        
+        print(f"  📊 Parameter Distribution:")
+        print(f"    Total parameters: {total_params:,}")
+        print(f"    Transformer parameters: {transformer_params:,} ({100*transformer_params/total_params:.1f}%)")
+        print(f"    Other parameters: {other_params:,} ({100*other_params/total_params:.1f}%)")
+        print(f"    Expected improvements:")
+        print(f"      - Transformer std amplification: ~2-3x (was ~1x)")
+        print(f"      - Transformer grad norms: ~0.3-0.5 (was ≤0.16)")  
+        print(f"      - Logits magnitude: >0.1 (was ~0.1)")
+        print(f"      - AUC should jump off 0.5 floor within 2-3 epochs")
+    
+    # Counter for debug batches
+    debug_batch_count = 0
+    max_debug_batches = 2  # Log for first N batches
+    
     for epoch in range(1, num_epochs + 1):
         # Training phase
         model.train()
@@ -456,7 +596,7 @@ def train_model(model, train_loader, val_loader, num_epochs=20, lr=5e-3, device=
         train_probs = []
         train_labels = []
         
-        for emb_a, emb_b, lengths_a, lengths_b, interactions in train_loader:
+        for batch_idx, (emb_a, emb_b, lengths_a, lengths_b, interactions) in enumerate(train_loader):
             emb_a = emb_a.to(device).float()
             emb_b = emb_b.to(device).float()
             lengths_a = lengths_a.to(device)
@@ -471,8 +611,55 @@ def train_model(model, train_loader, val_loader, num_epochs=20, lr=5e-3, device=
             loss = criterion(logits, interactions)
             loss.backward()
             
-            # Gradient clipping for stability
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            # Enhanced debug information (only for TransformerEnhancedProteinClassifier in debug_mode)
+            if debug_mode and hasattr(model, 'transformer_encoder') and epoch == 1 and debug_batch_count < max_debug_batches:
+                print(f"  DEBUG Batch {batch_idx+1}, Epoch {epoch}: Comprehensive Statistics")
+                print("  " + "="*50)
+                
+                # Gradient norms with more detail
+                print(f"  Gradient Norms:")
+                transformer_grads = []
+                other_grads = []
+                
+                for name, param in model.named_parameters():
+                    if param.grad is not None:
+                        grad_norm = param.grad.norm().item()
+                        # Log key layers with more detail
+                        if 'input_projection' in name or \
+                           'transformer_encoder.layers.0.self_attn.out_proj' in name or \
+                           'transformer_encoder.layers.0.linear1' in name or \
+                           'transformer_encoder.layers.0.norm1' in name or \
+                           'protein_encoder.0.weight' in name or \
+                           'interaction_layer.0.weight' in name:
+                            print(f"    {name}: {grad_norm:.4e}")
+                        
+                        # Collect transformer vs other gradients for analysis
+                        if 'transformer_encoder' in name:
+                            transformer_grads.append(grad_norm)
+                        else:
+                            other_grads.append(grad_norm)
+                    else:
+                        if 'input_projection' in name or \
+                           'transformer_encoder.layers.0.self_attn.out_proj' in name or \
+                           'transformer_encoder.layers.0.linear1' in name or \
+                           'transformer_encoder.layers.0.norm1' in name or \
+                           'protein_encoder.0.weight' in name or \
+                           'interaction_layer.0.weight' in name:
+                            print(f"    {name}: No gradient")
+                
+                # Gradient analysis
+                if transformer_grads and other_grads:
+                    avg_transformer = sum(transformer_grads) / len(transformer_grads)
+                    avg_other = sum(other_grads) / len(other_grads)
+                    print(f"  Gradient Analysis:")
+                    print(f"    Avg transformer grad norm: {avg_transformer:.4e} ({len(transformer_grads)} params)")
+                    print(f"    Avg other grad norm: {avg_other:.4e} ({len(other_grads)} params)")
+                    print(f"    Transformer/Other ratio: {avg_transformer/avg_other:.4f}")
+                
+                print("  ---- End of Gradient Analysis ----")
+            
+            # ③ Remove manual gradient scaling - use simple gradient clipping
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             
             optimizer.step()
             scheduler.step()
@@ -485,6 +672,12 @@ def train_model(model, train_loader, val_loader, num_epochs=20, lr=5e-3, device=
                 train_preds.extend(preds.cpu().numpy())
                 train_probs.extend(probs.cpu().numpy())
                 train_labels.extend(interactions.cpu().numpy())
+            
+            if debug_mode and hasattr(model, 'debug_forward') and epoch == 1:
+                debug_batch_count += 1
+                if debug_batch_count >= max_debug_batches:
+                    print("  ⚠️ DEBUG MODE: Disabling forward pass statistics after first few batches.")
+                    model.debug_forward = False # Turn off after a few batches
         
         # Validation phase
         model.eval()
@@ -547,5 +740,489 @@ def train_model(model, train_loader, val_loader, num_epochs=20, lr=5e-3, device=
     
     print(f'Training completed! Best validation AUC: {best_val_auc:.4f}')
     return history, best_val_auc
+
+
+def main():
+    """
+    Main function to train protein interaction models
+    """
+    print("🚀 Starting Protein Interaction Model Training")
+    print("=" * 60)
+    
+    # Configuration
+    config = {
+        'batch_size': 32,
+        'num_epochs': 5,  # Reduced for faster debugging
+        'learning_rate': 3e-3,
+        'hidden_dim': 256,
+        'dropout': 0.3,
+        'device': 'cuda' if torch.cuda.is_available() else 'cpu'
+    }
+    
+    print(f"Configuration: {config}")
+    print(f"Using device: {config['device']}")
+    
+    # Load data
+    print("\n📂 Loading data...")
+    try:
+        train_data, cv_data, test1_data, test2_data, protein_embeddings = load_data()
+        print(f"✅ Data loaded successfully!")
+        print(f"   Train samples: {len(train_data)}")
+        print(f"   Validation samples: {len(cv_data)}")
+        print(f"   Test1 samples: {len(test1_data)}")
+        print(f"   Test2 samples: {len(test2_data)}")
+        print(f"   Protein embeddings: {len(protein_embeddings)}")
+    except Exception as e:
+        print(f"❌ Error loading data: {e}")
+        return
+    
+    # Create datasets
+    print("\n📊 Creating datasets...")
+    try:
+        train_dataset = ProteinPairDataset(train_data, protein_embeddings)
+        val_dataset = ProteinPairDataset(cv_data, protein_embeddings)
+        test1_dataset = ProteinPairDataset(test1_data, protein_embeddings)
+        test2_dataset = ProteinPairDataset(test2_data, protein_embeddings)
+        
+        print(f"✅ Datasets created successfully!")
+        print(f"   Train dataset: {len(train_dataset)} valid pairs")
+        print(f"   Validation dataset: {len(val_dataset)} valid pairs")
+        print(f"   Test1 dataset: {len(test1_dataset)} valid pairs")
+        print(f"   Test2 dataset: {len(test2_dataset)} valid pairs")
+    except Exception as e:
+        print(f"❌ Error creating datasets: {e}")
+        return
+    
+    # Create data loaders
+    print("\n🔄 Creating data loaders...")
+    train_loader = DataLoader(
+        train_dataset, 
+        batch_size=config['batch_size'], 
+        shuffle=True, 
+        collate_fn=collate_fn,
+        num_workers=2,
+        pin_memory=False  # Disabled pin_memory to avoid CUDA invalid argument errors
+    )
+    val_loader = DataLoader(
+        val_dataset, 
+        batch_size=config['batch_size'], 
+        shuffle=False, 
+        collate_fn=collate_fn,
+        num_workers=2,
+        pin_memory=False
+    )
+    test1_loader = DataLoader(
+        test1_dataset, 
+        batch_size=config['batch_size'], 
+        shuffle=False, 
+        collate_fn=collate_fn,
+        num_workers=2,
+        pin_memory=False
+    )
+    test2_loader = DataLoader(
+        test2_dataset, 
+        batch_size=config['batch_size'], 
+        shuffle=False, 
+        collate_fn=collate_fn,
+        num_workers=2,
+        pin_memory=False
+    )
+    
+    print(f"✅ Data loaders created!")
+    print(f"   Train batches: {len(train_loader)}")
+    print(f"   Validation batches: {len(val_loader)}")
+    
+    # Models to train
+    models_to_train = {
+        # 'SimplifiedProteinClassifier': {
+        #     'type': 'simple',
+        #     'params': {
+        #         'hidden_dim': config['hidden_dim'],
+        #         'dropout': config['dropout']
+        #     }
+        # },
+        'TransformerEnhancedProteinClassifier': {
+            'type': 'enhanced',
+            'params': {
+                'hidden_dim': config['hidden_dim'],
+                'num_transformer_layers': 1,
+                'num_heads': 8,
+                'dropout': config['dropout']
+            }
+        }
+    }
+    
+    # Train each model
+    results = {}
+    
+    for model_name, model_config in models_to_train.items():
+        print(f"\n🧠 Training {model_name}")
+        print("=" * (10 + len(model_name)))
+        
+        try:
+            # Create model
+            model_debug_mode = False
+            # if model_name == 'TransformerEnhancedProteinClassifier':
+            #     print("  🔬 ENABLING DEBUG MODE FOR TRANSFORMER MODEL")
+            #     model_debug_mode = True
+            
+            model = create_model(model_config['type'], **model_config['params'])
+            print(f"📋 Model created with {sum(p.numel() for p in model.parameters()):,} parameters")
+            
+            # Train model
+            history, best_val_auc = train_model(
+                model=model,
+                train_loader=train_loader,
+                val_loader=val_loader,
+                num_epochs=config['num_epochs'],
+                lr=config['learning_rate'],
+                device=config['device'],
+                debug_mode=model_debug_mode # Pass the debug_mode flag
+            )
+            
+            # Store results
+            results[model_name] = {
+                'model': model,
+                'history': history,
+                'best_val_auc': best_val_auc
+            }
+            
+            # Save model
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            model_path = f"models/{model_name}_{timestamp}_auc{best_val_auc:.4f}.pt"
+            os.makedirs("models", exist_ok=True)
+            
+            torch.save({
+                'model_state_dict': model.state_dict(),
+                'model_config': model_config,
+                'best_val_auc': best_val_auc,
+                'history': history,
+                'training_config': config
+            }, model_path)
+            
+            print(f"💾 Model saved to: {model_path}")
+            
+        except Exception as e:
+            print(f"❌ Error training {model_name}: {e}")
+            continue
+    
+    # Compare results
+    print(f"\n📊 Training Results Summary")
+    print("=" * 50)
+    
+    for model_name, result in results.items():
+        print(f"{model_name}:")
+        print(f"  Best Validation AUC: {result['best_val_auc']:.4f}")
+        
+        # Show final epoch metrics
+        final_metrics = result['history'][-1]
+        print(f"  Final Train AUC: {final_metrics['train_auc']:.4f}")
+        print(f"  Final Val F1: {final_metrics['val_f1']:.4f}")
+        print(f"  Final Val Accuracy: {final_metrics['val_acc']:.4f}")
+        print()
+    
+    # Evaluate on test sets
+    print(f"\n🧪 Evaluating on Test Sets")
+    print("=" * 40)
+    
+    test_results = {}
+    
+    for model_name, result in results.items():
+        print(f"\n{model_name} Test Results:")
+        print("-" * (len(model_name) + 14))
+        
+        model = result['model']
+        model.eval()
+        
+        test_results[model_name] = {}
+        
+        # Test on both test sets
+        for test_name, test_loader in [('Test1', test1_loader), ('Test2', test2_loader)]:
+            test_preds = []
+            test_probs = []
+            test_labels = []
+            
+            with torch.no_grad():
+                for emb_a, emb_b, lengths_a, lengths_b, interactions in test_loader:
+                    emb_a = emb_a.to(config['device']).float()
+                    emb_b = emb_b.to(config['device']).float()
+                    lengths_a = lengths_a.to(config['device'])
+                    lengths_b = lengths_b.to(config['device'])
+                    interactions = interactions.to(config['device']).float()
+                    
+                    logits = model(emb_a, emb_b, lengths_a, lengths_b)
+                    if logits.dim() > 1:
+                        logits = logits.squeeze(-1)
+                    
+                    probs = torch.sigmoid(logits)
+                    preds = (probs > 0.5).float()
+                    
+                    test_preds.extend(preds.cpu().numpy())
+                    test_probs.extend(probs.cpu().numpy())
+                    test_labels.extend(interactions.cpu().numpy())
+            
+            # Calculate metrics
+            test_acc = accuracy_score(test_labels, test_preds)
+            test_auroc = roc_auc_score(test_labels, test_probs)
+            test_auprc = average_precision_score(test_labels, test_probs)
+            test_f1 = f1_score(test_labels, test_preds)
+            test_precision = precision_score(test_labels, test_preds)
+            test_recall = recall_score(test_labels, test_preds)
+            
+            # Store results for plotting
+            test_results[model_name][test_name] = {
+                'labels': test_labels,
+                'probs': test_probs,
+                'preds': test_preds,
+                'auroc': test_auroc,
+                'auprc': test_auprc,
+                'accuracy': test_acc,
+                'f1': test_f1,
+                'precision': test_precision,
+                'recall': test_recall
+            }
+            
+            print(f"  {test_name} - AUROC: {test_auroc:.4f}, AUPRC: {test_auprc:.4f}, Acc: {test_acc:.4f}, F1: {test_f1:.4f}, "
+                  f"Prec: {test_precision:.4f}, Rec: {test_recall:.4f}")
+    
+    # Plot training curves
+    print(f"\n📈 Generating training plots...")
+    try:
+        plot_training_curves(results)
+        print("✅ Training plots saved!")
+    except Exception as e:
+        print(f"⚠️ Could not generate plots: {e}")
+    
+    # Plot test set AUROC and AUPRC curves
+    print(f"\n📊 Generating test set ROC and PR curves...")
+    try:
+        plot_test_curves(test_results)
+        print("✅ Test set curves saved!")
+    except Exception as e:
+        print(f"⚠️ Could not generate test plots: {e}")
+    
+    print(f"\n🎉 Training completed successfully!")
+    return results
+
+
+def plot_training_curves(results):
+    """Plot training curves for comparison"""
+    
+    fig, axes = plt.subplots(2, 2, figsize=(15, 10))
+    fig.suptitle('Training Curves Comparison', fontsize=16)
+    
+    colors = ['blue', 'red', 'green', 'orange']
+    
+    for i, (model_name, result) in enumerate(results.items()):
+        history = result['history']
+        epochs = [h['epoch'] for h in history]
+        
+        color = colors[i % len(colors)]
+        
+        # Training and validation loss
+        train_losses = [h['train_loss'] for h in history]
+        val_losses = [h['val_loss'] for h in history]
+        axes[0, 0].plot(epochs, train_losses, f'{color}-', label=f'{model_name} Train', alpha=0.7)
+        axes[0, 0].plot(epochs, val_losses, f'{color}--', label=f'{model_name} Val', alpha=0.7)
+        
+        # Training and validation AUC
+        train_aucs = [h['train_auc'] for h in history]
+        val_aucs = [h['val_auc'] for h in history]
+        axes[0, 1].plot(epochs, train_aucs, f'{color}-', label=f'{model_name} Train', alpha=0.7)
+        axes[0, 1].plot(epochs, val_aucs, f'{color}--', label=f'{model_name} Val', alpha=0.7)
+        
+        # Validation F1 and Accuracy
+        val_f1s = [h['val_f1'] for h in history]
+        val_accs = [h['val_acc'] for h in history]
+        axes[1, 0].plot(epochs, val_f1s, f'{color}-', label=f'{model_name} F1', alpha=0.7)
+        axes[1, 1].plot(epochs, val_accs, f'{color}-', label=f'{model_name} Acc', alpha=0.7)
+    
+    # Customize plots
+    axes[0, 0].set_title('Loss')
+    axes[0, 0].set_xlabel('Epoch')
+    axes[0, 0].set_ylabel('Loss')
+    axes[0, 0].legend()
+    axes[0, 0].grid(True, alpha=0.3)
+    
+    axes[0, 1].set_title('AUC')
+    axes[0, 1].set_xlabel('Epoch')
+    axes[0, 1].set_ylabel('AUC')
+    axes[0, 1].legend()
+    axes[0, 1].grid(True, alpha=0.3)
+    
+    axes[1, 0].set_title('Validation F1')
+    axes[1, 0].set_xlabel('Epoch')
+    axes[1, 0].set_ylabel('F1 Score')
+    axes[1, 0].legend()
+    axes[1, 0].grid(True, alpha=0.3)
+    
+    axes[1, 1].set_title('Validation Accuracy')
+    axes[1, 1].set_xlabel('Epoch')
+    axes[1, 1].set_ylabel('Accuracy')
+    axes[1, 1].legend()
+    axes[1, 1].grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    
+    # Save plot
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    plot_path = f"training_curves_{timestamp}.png"
+    plt.savefig(plot_path, dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    print(f"📊 Training curves saved to: {plot_path}")
+
+
+def plot_test_curves(test_results):
+    """Plot ROC and Precision-Recall curves for test sets"""
+    
+    # Create subplots for ROC and PR curves
+    fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+    fig.suptitle('Test Set Performance: ROC and Precision-Recall Curves', fontsize=16)
+    
+    colors = ['blue', 'red', 'green', 'orange', 'purple', 'brown']
+    line_styles = ['-', '--', '-.', ':']
+    
+    # Plot ROC curves
+    axes[0, 0].set_title('ROC Curves - Test1')
+    axes[0, 1].set_title('ROC Curves - Test2')
+    axes[1, 0].set_title('Precision-Recall Curves - Test1')
+    axes[1, 1].set_title('Precision-Recall Curves - Test2')
+    
+    model_idx = 0
+    for model_name, model_results in test_results.items():
+        color = colors[model_idx % len(colors)]
+        
+        for test_idx, (test_name, test_data) in enumerate(model_results.items()):
+            line_style = line_styles[test_idx % len(line_styles)]
+            
+            # Get test data
+            y_true = np.array(test_data['labels'])
+            y_scores = np.array(test_data['probs'])
+            auroc = test_data['auroc']
+            auprc = test_data['auprc']
+            
+            # Calculate ROC curve
+            fpr, tpr, _ = roc_curve(y_true, y_scores)
+            
+            # Calculate PR curve
+            precision, recall, _ = precision_recall_curve(y_true, y_scores)
+            
+            # Plot ROC curves
+            if test_name == 'Test1':
+                axes[0, 0].plot(fpr, tpr, color=color, linestyle=line_style, linewidth=2,
+                               label=f'{model_name} (AUROC={auroc:.4f})')
+            else:  # Test2
+                axes[0, 1].plot(fpr, tpr, color=color, linestyle=line_style, linewidth=2,
+                               label=f'{model_name} (AUROC={auroc:.4f})')
+            
+            # Plot PR curves
+            if test_name == 'Test1':
+                axes[1, 0].plot(recall, precision, color=color, linestyle=line_style, linewidth=2,
+                               label=f'{model_name} (AUPRC={auprc:.4f})')
+            else:  # Test2
+                axes[1, 1].plot(recall, precision, color=color, linestyle=line_style, linewidth=2,
+                               label=f'{model_name} (AUPRC={auprc:.4f})')
+        
+        model_idx += 1
+    
+    # Add diagonal lines for ROC plots (random classifier)
+    for i in range(2):
+        axes[0, i].plot([0, 1], [0, 1], 'k--', alpha=0.5, label='Random Classifier')
+        axes[0, i].set_xlim([0.0, 1.0])
+        axes[0, i].set_ylim([0.0, 1.05])
+        axes[0, i].set_xlabel('False Positive Rate')
+        axes[0, i].set_ylabel('True Positive Rate')
+        axes[0, i].legend(loc="lower right")
+        axes[0, i].grid(True, alpha=0.3)
+    
+    # Add baseline for PR plots (random classifier based on class distribution)
+    for i, test_name in enumerate(['Test1', 'Test2']):
+        # Get class distribution for baseline
+        for model_results in test_results.values():
+            if test_name in model_results:
+                y_true = np.array(model_results[test_name]['labels'])
+                baseline_precision = np.mean(y_true)
+                axes[1, i].axhline(y=baseline_precision, color='k', linestyle='--', alpha=0.5, 
+                                  label=f'Random Classifier ({baseline_precision:.3f})')
+                break
+        
+        axes[1, i].set_xlim([0.0, 1.0])
+        axes[1, i].set_ylim([0.0, 1.05])
+        axes[1, i].set_xlabel('Recall')
+        axes[1, i].set_ylabel('Precision')
+        axes[1, i].legend(loc="lower left")
+        axes[1, i].grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    
+    # Save plot
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    plot_path = f"test_roc_pr_curves_{timestamp}.png"
+    plt.savefig(plot_path, dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    print(f"📊 Test ROC and PR curves saved to: {plot_path}")
+    
+    # Also create a summary metrics bar plot
+    plot_test_metrics_summary(test_results)
+
+
+def plot_test_metrics_summary(test_results):
+    """Create a summary bar plot of test metrics"""
+    
+    fig, axes = plt.subplots(2, 2, figsize=(16, 10))
+    fig.suptitle('Test Set Metrics Summary', fontsize=16)
+    
+    # Prepare data for plotting
+    models = list(test_results.keys())
+    test_sets = ['Test1', 'Test2']
+    
+    metrics = ['auroc', 'auprc', 'f1', 'accuracy']
+    metric_names = ['AUROC', 'AUPRC', 'F1 Score', 'Accuracy']
+    
+    x = np.arange(len(models))
+    width = 0.35
+    
+    for i, (metric, metric_name) in enumerate(zip(metrics, metric_names)):
+        ax = axes[i // 2, i % 2]
+        
+        test1_values = [test_results[model]['Test1'][metric] for model in models]
+        test2_values = [test_results[model]['Test2'][metric] for model in models]
+        
+        bars1 = ax.bar(x - width/2, test1_values, width, label='Test1', alpha=0.8, color='skyblue')
+        bars2 = ax.bar(x + width/2, test2_values, width, label='Test2', alpha=0.8, color='lightcoral')
+        
+        ax.set_xlabel('Model')
+        ax.set_ylabel(metric_name)
+        ax.set_title(f'{metric_name} Comparison')
+        ax.set_xticks(x)
+        ax.set_xticklabels([name.replace('ProteinClassifier', '') for name in models], rotation=45, ha='right')
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+        
+        # Add value labels on bars
+        for bars in [bars1, bars2]:
+            for bar in bars:
+                height = bar.get_height()
+                ax.annotate(f'{height:.3f}',
+                           xy=(bar.get_x() + bar.get_width() / 2, height),
+                           xytext=(0, 3),  # 3 points vertical offset
+                           textcoords="offset points",
+                           ha='center', va='bottom', fontsize=10)
+    
+    plt.tight_layout()
+    
+    # Save plot
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    plot_path = f"test_metrics_summary_{timestamp}.png"
+    plt.savefig(plot_path, dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    print(f"📊 Test metrics summary saved to: {plot_path}")
+
+
+if __name__ == "__main__":
+    main()
 
 
