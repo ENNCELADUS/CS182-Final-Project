@@ -238,6 +238,7 @@ class TransformerEnhancedProteinClassifier(nn.Module):
         self.input_projection = nn.Linear(input_dim, hidden_dim)
         
         # Transformer encoder layers for sequence modeling
+        # FIX: Use standard transformer settings to avoid negative bias
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=hidden_dim,
             nhead=num_heads,
@@ -245,12 +246,12 @@ class TransformerEnhancedProteinClassifier(nn.Module):
             dropout=dropout,
             activation='relu',
             batch_first=True,
-            norm_first=True  # Pre-norm for better training stability
+            norm_first=False  # Changed from True to False to fix output bias
         )
         self.transformer_encoder = nn.TransformerEncoder(
             encoder_layer, 
-            num_layers=num_transformer_layers,
-            norm=nn.LayerNorm(hidden_dim)
+            num_layers=num_transformer_layers
+            # Removed extra LayerNorm that was causing issues
         )
         
         # Keep the proven protein encoder structure after transformer
@@ -279,7 +280,8 @@ class TransformerEnhancedProteinClassifier(nn.Module):
     
     def _init_weights(self, module):
         if isinstance(module, nn.Linear):
-            torch.nn.init.xavier_uniform_(module.weight)
+            # FIX: Use more conservative initialization for better stability
+            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
             if module.bias is not None:
                 torch.nn.init.zeros_(module.bias)
         elif isinstance(module, nn.LayerNorm):
