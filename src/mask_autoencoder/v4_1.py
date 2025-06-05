@@ -16,6 +16,19 @@ from tqdm import tqdm
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score, average_precision_score, roc_curve, precision_recall_curve
 import math
 
+def sinusoid_encoding_table(max_len, d_model):
+    """Create sinusoidal positional encoding table"""
+    pe = torch.zeros(max_len, d_model).float()
+    position = torch.arange(0, max_len).unsqueeze(1).float()
+    
+    div_term = torch.exp(torch.arange(0, d_model, 2).float() * 
+                        -(math.log(10000.0) / d_model))
+    
+    pe[:, 0::2] = torch.sin(position * div_term)
+    pe[:, 1::2] = torch.cos(position * div_term)
+    
+    return pe.unsqueeze(0)  # (1, max_len, d_model)
+
 # First, let's examine the data structure to identify column names
 def examine_dataframe(df):
     """Print the structure of the dataframe to identify column names"""
@@ -227,31 +240,42 @@ def collate_fn(batch):
 
 class TransformerEnhancedProteinClassifier(nn.Module):
     """
-    Enhanced version of SimplifiedProteinClassifier with transformer layers
-    Based on the proven architecture but with added attention mechanism
+    Fixed version of TransformerEnhancedProteinClassifier with:
+    1. Learnable CLS token and sinusoidal positional encoding
+    2. Standard initialization + norm_first=False
+    3. Larger feedforward dimension (4x)
+    4. No manual gradient scaling (handled by optimizer)
     """
     def __init__(self, input_dim=960, hidden_dim=256, num_transformer_layers=2, 
                  num_heads=8, dropout=0.3):
         super().__init__()
+        self.debug_forward = False
+        self.hidden_dim = hidden_dim
+        self.input_dim = input_dim
+        
+        # ① Add learnable CLS token and sinusoidal position encoding
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, input_dim))
+        self.max_position_embeddings = 2048  # Support longer sequences
+        self.register_buffer('pos_encoding',
+                             sinusoid_encoding_table(self.max_position_embeddings, input_dim),
+                             persistent=False)
         
         # Initial projection to hidden dimension
         self.input_projection = nn.Linear(input_dim, hidden_dim)
         
-        # Transformer encoder layers for sequence modeling
-        # FIX: Use standard transformer settings to avoid negative bias
+        # ② Use standard init + no norm_first + larger feedforward
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=hidden_dim,
             nhead=num_heads,
-            dim_feedforward=hidden_dim * 2,
+            dim_feedforward=hidden_dim * 4,  # Increased from 2x to 4x
             dropout=dropout,
-            activation='relu',
+            activation='gelu',  # Changed from relu to gelu
             batch_first=True,
-            norm_first=False  # Changed from True to False to fix output bias
+            norm_first=False  # Reverted from True to False
         )
         self.transformer_encoder = nn.TransformerEncoder(
             encoder_layer, 
             num_layers=num_transformer_layers
-            # Removed extra LayerNorm that was causing issues
         )
         
         # Keep the proven protein encoder structure after transformer
@@ -275,13 +299,27 @@ class TransformerEnhancedProteinClassifier(nn.Module):
             nn.Linear(hidden_dim // 2, 1)
         )
         
-        # Better weight initialization
+        # Standard weight initialization
         self.apply(self._init_weights)
+        
+        # Store architecture details for debugging
+        self._architecture_info = {
+            'input_dim': input_dim,
+            'hidden_dim': hidden_dim,
+            'num_transformer_layers': num_transformer_layers,
+            'num_heads': num_heads,
+            'dropout': dropout,
+            'feedforward_dim': hidden_dim * 4,
+            'norm_first': False,
+            'activation': 'gelu',
+            'has_cls_token': True,
+            'has_positional_encoding': True
+        }
     
     def _init_weights(self, module):
         if isinstance(module, nn.Linear):
-            # FIX: Use more conservative initialization for better stability
-            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+            # Use standard Xavier initialization instead of tiny std
+            torch.nn.init.xavier_uniform_(module.weight)
             if module.bias is not None:
                 torch.nn.init.zeros_(module.bias)
         elif isinstance(module, nn.LayerNorm):
@@ -296,37 +334,89 @@ class TransformerEnhancedProteinClassifier(nn.Module):
             lengths_a: (B,) actual lengths for protein A
             lengths_b: (B,) actual lengths for protein B
         """
+        B, La, _ = emb_a.shape
+        B, Lb, _ = emb_b.shape
         device = emb_a.device
         
+        # Prepend CLS token and add positional encoding
+        emb_a = torch.cat([self.cls_token.expand(B, -1, -1), emb_a], dim=1)  # (B, La+1, 960)
+        emb_b = torch.cat([self.cls_token.expand(B, -1, -1), emb_b], dim=1)  # (B, Lb+1, 960)
+        
+        # Add positional encoding with bounds checking
+        max_len_a = min(La+1, self.max_position_embeddings)
+        max_len_b = min(Lb+1, self.max_position_embeddings)
+        
+        # Warn if sequences exceed positional encoding length (only during debug)
+        if self.debug_forward and (La+1 > self.max_position_embeddings or Lb+1 > self.max_position_embeddings):
+            print(f"  WARNING: Sequence length exceeds max_position_embeddings ({self.max_position_embeddings})")
+            print(f"    Protein A: {La+1}, Protein B: {Lb+1}")
+        
+        pos_slice_a = self.pos_encoding[:, :max_len_a]  # (1, max_len_a, 960)
+        pos_slice_b = self.pos_encoding[:, :max_len_b]  # (1, max_len_b, 960)
+        
+        # Only add positional encoding to the parts we have encoding for
+        emb_a[:, :max_len_a] = emb_a[:, :max_len_a] + pos_slice_a
+        emb_b[:, :max_len_b] = emb_b[:, :max_len_b] + pos_slice_b
+        
+        # If sequences are longer than max_position_embeddings, the remaining positions
+        # will not have positional encoding (which is still better than crashing)
+        
         # Project to hidden dimension
-        emb_a_proj = self.input_projection(emb_a)  # (B, L_a, hidden_dim)
-        emb_b_proj = self.input_projection(emb_b)  # (B, L_b, hidden_dim)
+        emb_a_proj = self.input_projection(emb_a)  # (B, La+1, hidden_dim)
+        emb_b_proj = self.input_projection(emb_b)  # (B, Lb+1, hidden_dim)
         
-        # Create attention masks (True for padding positions)
-        max_len_a = emb_a.size(1)
-        max_len_b = emb_b.size(1)
+        if self.debug_forward:
+            print(f"  DEBUG: emb_a_proj - mean: {emb_a_proj.mean():.4f}, std: {emb_a_proj.std():.4f}, min: {emb_a_proj.min():.4f}, max: {emb_a_proj.max():.4f}")
+            print(f"  DEBUG: emb_b_proj - mean: {emb_b_proj.mean():.4f}, std: {emb_b_proj.std():.4f}, min: {emb_b_proj.min():.4f}, max: {emb_b_proj.max():.4f}")
         
-        mask_a = torch.arange(max_len_a, device=device).unsqueeze(0) >= lengths_a.unsqueeze(1)
-        mask_b = torch.arange(max_len_b, device=device).unsqueeze(0) >= lengths_b.unsqueeze(1)
+        # Build padding masks (shifted by 1 because of CLS token)
+        mask_a = torch.arange(La+1, device=device).unsqueeze(0) >= (lengths_a+1).unsqueeze(1)
+        mask_b = torch.arange(Lb+1, device=device).unsqueeze(0) >= (lengths_b+1).unsqueeze(1)
         
         # Apply transformer encoder with attention masks
-        emb_a_transformed = self.transformer_encoder(emb_a_proj, src_key_padding_mask=mask_a)
-        emb_b_transformed = self.transformer_encoder(emb_b_proj, src_key_padding_mask=mask_b)
+        z_a = self.transformer_encoder(emb_a_proj, src_key_padding_mask=mask_a)
+        z_b = self.transformer_encoder(emb_b_proj, src_key_padding_mask=mask_b)
+
+        if self.debug_forward:
+            print(f"  DEBUG: emb_a_transformed - mean: {z_a.mean():.4f}, std: {z_a.std():.4f}, min: {z_a.min():.4f}, max: {z_a.max():.4f}")
+            print(f"  DEBUG: emb_b_transformed - mean: {z_b.mean():.4f}, std: {z_b.std():.4f}, min: {z_b.min():.4f}, max: {z_b.max():.4f}")
+            # Additional statistics for transformer effectiveness
+            std_change_a = z_a.std() / emb_a_proj.std()
+            std_change_b = z_b.std() / emb_b_proj.std()
+            print(f"  DEBUG: Transformer std amplification - A: {std_change_a:.4f}, B: {std_change_b:.4f}")
         
-        # Average pooling with mask (same as proven approach)
-        mask_a_float = ~mask_a  # Convert to actual sequence mask (False for padding)
-        mask_b_float = ~mask_b
-        
-        emb_a_avg = (emb_a_transformed * mask_a_float.unsqueeze(-1).float()).sum(dim=1) / lengths_a.unsqueeze(-1).float()
-        emb_b_avg = (emb_b_transformed * mask_b_float.unsqueeze(-1).float()).sum(dim=1) / lengths_b.unsqueeze(-1).float()
+        # Take CLS token only (index 0)
+        emb_a_avg = z_a[:, 0]  # (B, hidden_dim)
+        emb_b_avg = z_b[:, 0]  # (B, hidden_dim)
+
+        if self.debug_forward:
+            print(f"  DEBUG: emb_a_avg (CLS) - mean: {emb_a_avg.mean():.4f}, std: {emb_a_avg.std():.4f}, min: {emb_a_avg.min():.4f}, max: {emb_a_avg.max():.4f}")
+            print(f"  DEBUG: emb_b_avg (CLS) - mean: {emb_b_avg.mean():.4f}, std: {emb_b_avg.std():.4f}, min: {emb_b_avg.min():.4f}, max: {emb_b_avg.max():.4f}")
         
         # Use the proven encoder and interaction layers
         enc_a = self.protein_encoder(emb_a_avg)  # (B, hidden_dim)
         enc_b = self.protein_encoder(emb_b_avg)  # (B, hidden_dim)
+
+        if self.debug_forward:
+            print(f"  DEBUG: enc_a - mean: {enc_a.mean():.4f}, std: {enc_a.std():.4f}, min: {enc_a.min():.4f}, max: {enc_a.max():.4f}")
+            print(f"  DEBUG: enc_b - mean: {enc_b.mean():.4f}, std: {enc_b.std():.4f}, min: {enc_b.min():.4f}, max: {enc_b.max():.4f}")
+            # Check for ReLU saturation
+            zero_frac_a = (enc_a == 0).float().mean()
+            zero_frac_b = (enc_b == 0).float().mean()
+            print(f"  DEBUG: ReLU zero fraction - A: {zero_frac_a:.4f}, B: {zero_frac_b:.4f}")
         
         # Combine and predict interaction (exactly as before)
         combined = torch.cat([enc_a, enc_b], dim=-1)  # (B, 2*hidden_dim)
         logits = self.interaction_layer(combined)  # (B, 1)
+
+        if self.debug_forward:
+            print(f"  DEBUG: logits - mean: {logits.mean():.4f}, std: {logits.std():.4f}, min: {logits.min():.4f}, max: {logits.max():.4f}")
+            # Check logits magnitude for learning signal
+            logits_magnitude = logits.abs().mean()
+            print(f"  DEBUG: logits magnitude: {logits_magnitude:.4f} (should be > 0.1 for good learning)")
+            # Expected sigmoid range
+            sigmoid_mean = torch.sigmoid(logits).mean()
+            print(f"  DEBUG: sigmoid(logits) mean: {sigmoid_mean:.4f} (should deviate from 0.5 for learning)")
         
         return logits
 
@@ -418,7 +508,7 @@ def create_model(model_type='enhanced', **kwargs):
 
 
 # Training utilities
-def train_model(model, train_loader, val_loader, num_epochs=20, lr=5e-3, device='cuda'):
+def train_model(model, train_loader, val_loader, num_epochs=20, lr=5e-3, device='cuda', debug_mode=False):
     """
     Train a protein interaction model with the proven training setup
     
@@ -429,13 +519,24 @@ def train_model(model, train_loader, val_loader, num_epochs=20, lr=5e-3, device=
         num_epochs: Number of epochs to train
         lr: Learning rate
         device: Device to train on
+        debug_mode: Whether to enable debug mode
     """
     print(f"Training model with {sum(p.numel() for p in model.parameters()):,} parameters")
     
     model = model.to(device)
     
-    # Use the proven training setup
-    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=0.01)
+    # ③ Use different learning rates for transformer vs other parameters
+    transformer_params = [p for n, p in model.named_parameters() if 'transformer_encoder' in n]
+    other_params = [p for n, p in model.named_parameters() if 'transformer_encoder' not in n]
+    
+    if transformer_params:
+        optimizer = torch.optim.AdamW([
+            {'params': other_params, 'lr': lr},
+            {'params': transformer_params, 'lr': lr}  # Same LR initially
+        ], betas=(0.9, 0.98), weight_decay=0.01)
+    else:
+        optimizer = torch.optim.AdamW(model.parameters(), lr=lr, betas=(0.9, 0.98), weight_decay=0.01)
+
     scheduler = torch.optim.lr_scheduler.OneCycleLR(
         optimizer, 
         max_lr=lr, 
@@ -448,6 +549,45 @@ def train_model(model, train_loader, val_loader, num_epochs=20, lr=5e-3, device=
     best_val_auc = 0
     history = []
     
+    # Enable debug for the model if applicable
+    if debug_mode and hasattr(model, 'debug_forward'):
+        print("  ⚠️ DEBUG MODE: Enabling comprehensive debugging for the model.")
+        model.debug_forward = True
+        
+        # Print detailed architecture information
+        if hasattr(model, '_architecture_info'):
+            print("  📋 Model Architecture Details:")
+            arch = model._architecture_info
+            print(f"    Input dimension: {arch['input_dim']}")
+            print(f"    Hidden dimension: {arch['hidden_dim']}")
+            print(f"    Transformer layers: {arch['num_transformer_layers']}")
+            print(f"    Attention heads: {arch['num_heads']}")
+            print(f"    Feedforward dimension: {arch['feedforward_dim']} ({arch['feedforward_dim']//arch['hidden_dim']}x hidden)")
+            print(f"    Activation: {arch['activation']}")
+            print(f"    Norm first: {arch['norm_first']}")
+            print(f"    Dropout: {arch['dropout']}")
+            print(f"    Has CLS token: {arch['has_cls_token']}")
+            print(f"    Has positional encoding: {arch['has_positional_encoding']}")
+            
+        # Print parameter counts by component
+        total_params = sum(p.numel() for p in model.parameters())
+        transformer_params = sum(p.numel() for n, p in model.named_parameters() if 'transformer_encoder' in n)
+        other_params = total_params - transformer_params
+        
+        print(f"  📊 Parameter Distribution:")
+        print(f"    Total parameters: {total_params:,}")
+        print(f"    Transformer parameters: {transformer_params:,} ({100*transformer_params/total_params:.1f}%)")
+        print(f"    Other parameters: {other_params:,} ({100*other_params/total_params:.1f}%)")
+        print(f"    Expected improvements:")
+        print(f"      - Transformer std amplification: ~2-3x (was ~1x)")
+        print(f"      - Transformer grad norms: ~0.3-0.5 (was ≤0.16)")  
+        print(f"      - Logits magnitude: >0.1 (was ~0.1)")
+        print(f"      - AUC should jump off 0.5 floor within 2-3 epochs")
+    
+    # Counter for debug batches
+    debug_batch_count = 0
+    max_debug_batches = 2  # Log for first N batches
+    
     for epoch in range(1, num_epochs + 1):
         # Training phase
         model.train()
@@ -456,7 +596,7 @@ def train_model(model, train_loader, val_loader, num_epochs=20, lr=5e-3, device=
         train_probs = []
         train_labels = []
         
-        for emb_a, emb_b, lengths_a, lengths_b, interactions in train_loader:
+        for batch_idx, (emb_a, emb_b, lengths_a, lengths_b, interactions) in enumerate(train_loader):
             emb_a = emb_a.to(device).float()
             emb_b = emb_b.to(device).float()
             lengths_a = lengths_a.to(device)
@@ -471,8 +611,55 @@ def train_model(model, train_loader, val_loader, num_epochs=20, lr=5e-3, device=
             loss = criterion(logits, interactions)
             loss.backward()
             
-            # Gradient clipping for stability
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            # Enhanced debug information (only for TransformerEnhancedProteinClassifier in debug_mode)
+            if debug_mode and hasattr(model, 'transformer_encoder') and epoch == 1 and debug_batch_count < max_debug_batches:
+                print(f"  DEBUG Batch {batch_idx+1}, Epoch {epoch}: Comprehensive Statistics")
+                print("  " + "="*50)
+                
+                # Gradient norms with more detail
+                print(f"  Gradient Norms:")
+                transformer_grads = []
+                other_grads = []
+                
+                for name, param in model.named_parameters():
+                    if param.grad is not None:
+                        grad_norm = param.grad.norm().item()
+                        # Log key layers with more detail
+                        if 'input_projection' in name or \
+                           'transformer_encoder.layers.0.self_attn.out_proj' in name or \
+                           'transformer_encoder.layers.0.linear1' in name or \
+                           'transformer_encoder.layers.0.norm1' in name or \
+                           'protein_encoder.0.weight' in name or \
+                           'interaction_layer.0.weight' in name:
+                            print(f"    {name}: {grad_norm:.4e}")
+                        
+                        # Collect transformer vs other gradients for analysis
+                        if 'transformer_encoder' in name:
+                            transformer_grads.append(grad_norm)
+                        else:
+                            other_grads.append(grad_norm)
+                    else:
+                        if 'input_projection' in name or \
+                           'transformer_encoder.layers.0.self_attn.out_proj' in name or \
+                           'transformer_encoder.layers.0.linear1' in name or \
+                           'transformer_encoder.layers.0.norm1' in name or \
+                           'protein_encoder.0.weight' in name or \
+                           'interaction_layer.0.weight' in name:
+                            print(f"    {name}: No gradient")
+                
+                # Gradient analysis
+                if transformer_grads and other_grads:
+                    avg_transformer = sum(transformer_grads) / len(transformer_grads)
+                    avg_other = sum(other_grads) / len(other_grads)
+                    print(f"  Gradient Analysis:")
+                    print(f"    Avg transformer grad norm: {avg_transformer:.4e} ({len(transformer_grads)} params)")
+                    print(f"    Avg other grad norm: {avg_other:.4e} ({len(other_grads)} params)")
+                    print(f"    Transformer/Other ratio: {avg_transformer/avg_other:.4f}")
+                
+                print("  ---- End of Gradient Analysis ----")
+            
+            # ③ Remove manual gradient scaling - use simple gradient clipping
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             
             optimizer.step()
             scheduler.step()
@@ -485,6 +672,12 @@ def train_model(model, train_loader, val_loader, num_epochs=20, lr=5e-3, device=
                 train_preds.extend(preds.cpu().numpy())
                 train_probs.extend(probs.cpu().numpy())
                 train_labels.extend(interactions.cpu().numpy())
+            
+            if debug_mode and hasattr(model, 'debug_forward') and epoch == 1:
+                debug_batch_count += 1
+                if debug_batch_count >= max_debug_batches:
+                    print("  ⚠️ DEBUG MODE: Disabling forward pass statistics after first few batches.")
+                    model.debug_forward = False # Turn off after a few batches
         
         # Validation phase
         model.eval()
@@ -559,7 +752,7 @@ def main():
     # Configuration
     config = {
         'batch_size': 32,
-        'num_epochs': 25,
+        'num_epochs': 5,  # Reduced for faster debugging
         'learning_rate': 3e-3,
         'hidden_dim': 256,
         'dropout': 0.3,
@@ -608,7 +801,7 @@ def main():
         shuffle=True, 
         collate_fn=collate_fn,
         num_workers=2,
-        pin_memory=True if config['device'] == 'cuda' else False
+        pin_memory=False  # Disabled pin_memory to avoid CUDA invalid argument errors
     )
     val_loader = DataLoader(
         val_dataset, 
@@ -616,7 +809,7 @@ def main():
         shuffle=False, 
         collate_fn=collate_fn,
         num_workers=2,
-        pin_memory=True if config['device'] == 'cuda' else False
+        pin_memory=False
     )
     test1_loader = DataLoader(
         test1_dataset, 
@@ -624,7 +817,7 @@ def main():
         shuffle=False, 
         collate_fn=collate_fn,
         num_workers=2,
-        pin_memory=True if config['device'] == 'cuda' else False
+        pin_memory=False
     )
     test2_loader = DataLoader(
         test2_dataset, 
@@ -632,7 +825,7 @@ def main():
         shuffle=False, 
         collate_fn=collate_fn,
         num_workers=2,
-        pin_memory=True if config['device'] == 'cuda' else False
+        pin_memory=False
     )
     
     print(f"✅ Data loaders created!")
@@ -652,7 +845,7 @@ def main():
             'type': 'enhanced',
             'params': {
                 'hidden_dim': config['hidden_dim'],
-                'num_transformer_layers': 2,
+                'num_transformer_layers': 1,
                 'num_heads': 8,
                 'dropout': config['dropout']
             }
@@ -668,6 +861,11 @@ def main():
         
         try:
             # Create model
+            model_debug_mode = False
+            # if model_name == 'TransformerEnhancedProteinClassifier':
+            #     print("  🔬 ENABLING DEBUG MODE FOR TRANSFORMER MODEL")
+            #     model_debug_mode = True
+            
             model = create_model(model_config['type'], **model_config['params'])
             print(f"📋 Model created with {sum(p.numel() for p in model.parameters()):,} parameters")
             
@@ -678,7 +876,8 @@ def main():
                 val_loader=val_loader,
                 num_epochs=config['num_epochs'],
                 lr=config['learning_rate'],
-                device=config['device']
+                device=config['device'],
+                debug_mode=model_debug_mode # Pass the debug_mode flag
             )
             
             # Store results
