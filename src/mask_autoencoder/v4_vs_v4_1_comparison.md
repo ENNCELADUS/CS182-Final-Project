@@ -42,7 +42,7 @@ Optimal Learning Rates:
 
 | Component                     | v4 (Complex)                                 | v4.1 (Simplified)                       |
 | ----------------------------- | -------------------------------------------- | --------------------------------------- |
-| **Transformer Layers**  | 6-16 enhanced layers with RoPE               | **1 simple layer**                |
+| **Transformer Layers**  | 6-16 enhanced layers with RoPE               | **1-3 simple layer**              |
 | **Positional Encoding** | Complex RoPE (Rotary Position Embedding)     | **Standard self-attention**       |
 | **Pooling**             | Hierarchical dual attention (global + local) | **Simple masked average pooling** |
 | **Dimensions**          | 256-512 embed dim                            | **64-192 embed dim**              |
@@ -74,8 +74,6 @@ class SimplifiedProteinEncoder(nn.Module):
         # Simple feedforward network
         # Simple masked average pooling
 ```
-
-
 
 Input (B, L, 960) ESM embeddings
     ↓

@@ -17,28 +17,7 @@ import warnings
 warnings.filterwarnings('ignore')
 
 # Import from the v4.1 module
-from v4_1 import load_data, ProteinPairDataset, collate_fn, SimplifiedProteinInteractionClassifier
-from v4_1_multi_layer import EnhancedProteinInteractionClassifier
-
-class EarlyStopping:
-    """Early stopping to prevent overfitting"""
-    def __init__(self, patience=7, min_delta=0.001):
-        self.patience = patience
-        self.min_delta = min_delta
-        self.counter = 0
-        self.best_score = None
-        self.early_stop = False
-        
-    def __call__(self, val_score):
-        if self.best_score is None:
-            self.best_score = val_score
-        elif val_score < self.best_score + self.min_delta:
-            self.counter += 1
-            if self.counter >= self.patience:
-                self.early_stop = True
-        else:
-            self.best_score = val_score
-            self.counter = 0
+from v4_1 import load_data, ProteinPairDataset, collate_fn, SimplifiedProteinClassifier, TransformerEnhancedProteinClassifier, create_model
 
 def save_model_checkpoint(model, config, metrics, save_dir, checkpoint_type="final"):
     """Save model checkpoint with configuration and metrics"""
@@ -90,17 +69,6 @@ def load_model_from_checkpoint(checkpoint_path, device='cpu'):
     
     return model, checkpoint['config'], checkpoint['metrics']
 
-def create_stable_validation_set(val_dataset, min_samples=1000):
-    """Create a stable validation set with sufficient samples"""
-    if len(val_dataset) < min_samples:
-        # Replicate the dataset if it's too small
-        indices = list(range(len(val_dataset))) * (min_samples // len(val_dataset) + 1)
-        indices = indices[:min_samples]
-        return Subset(val_dataset, indices)
-    else:
-        # Use first min_samples for consistency
-        return Subset(val_dataset, list(range(min_samples)))
-
 def count_model_parameters(model):
     """Count total model parameters"""
     return sum(p.numel() for p in model.parameters())
@@ -133,7 +101,6 @@ def train_and_evaluate_model(model, train_loader, val_loader, config, device, sa
         )
     
     criterion = nn.BCEWithLogitsLoss()
-    early_stopping = EarlyStopping(patience=10, min_delta=0.001)
     
     # Training history
     history = {
@@ -281,12 +248,6 @@ def train_and_evaluate_model(model, train_loader, val_loader, config, device, sa
         if epoch <= 5 or epoch % 10 == 0:
             print(f"   Epoch {epoch:2d}: Train Loss={train_loss:.4f}, Val Loss={val_loss:.4f}, "
                   f"Val AUC={val_auc:.4f}, Val Acc={val_acc:.4f}")
-        
-        # Early stopping check
-        early_stopping(val_auc)
-        if early_stopping.early_stop:
-            print(f"   🛑 Early stopping at epoch {epoch}")
-            break
     
     # Restore best model state
     if best_model_state is not None:
@@ -314,331 +275,415 @@ def train_and_evaluate_model(model, train_loader, val_loader, config, device, sa
         # Save final model
         final_path = save_model_checkpoint(model, config, final_metrics, save_dir, checkpoint_type="final")
         saved_models['final_model_path'] = final_path
-        
-        # If we have a best model state different from final, save it too
-        if best_model_state is not None and best_epoch != len(history['train_loss']):
-            model.load_state_dict(best_model_state)
-            best_metrics = {
-                'epoch': best_epoch,
-                'val_auc': best_val_auc,
-                'best_model': True,
-                'num_parameters': num_params
-            }
-            best_path = save_model_checkpoint(model, config, best_metrics, save_dir, checkpoint_type="best")
-            saved_models['best_model_path'] = best_path
     
     final_metrics['saved_models'] = saved_models
     return final_metrics
 
 def main():
-    """Run comprehensive v4.1 model comparison"""
-    print("🎯 COMPREHENSIVE V4.1 MODEL COMPARISON WITH MODEL SAVING")
-    print("=" * 60)
-    print("Testing various configurations of the simplified v4.1 architecture")
-    print("Including both single-layer and enhanced multi-layer variants")
+    """
+    Comprehensive comparison of v4.1 model configurations with enhanced evaluation
+    """
+    print("🧬 COMPREHENSIVE V4.1 MODEL COMPARISON")
     print("=" * 60)
     
-    # Create timestamp for this run
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    # Setup
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print(f"Using device: {device}")
     
-    # Create directories for saving models and results
-    results_dir = f"v4_1_comparison_results_{timestamp}"
-    models_dir = os.path.join(results_dir, "saved_models")
+    # Create directories
+    save_dir = "models/v4_1_comparison"
+    results_dir = "results/v4_1_comparison"
+    os.makedirs(save_dir, exist_ok=True)
     os.makedirs(results_dir, exist_ok=True)
-    os.makedirs(models_dir, exist_ok=True)
-    
-    print(f"📁 Results will be saved to: {results_dir}")
-    print(f"💾 Models will be saved to: {models_dir}")
     
     # Load data
-    train_data, val_data, _, _, protein_embeddings = load_data()
+    print("\n📊 Loading data...")
+    train_data, val_data, test1_data, test2_data, protein_embeddings = load_data()
     
-    # Create datasets with full validation set
+    # Create datasets
     train_dataset = ProteinPairDataset(train_data, protein_embeddings)
     val_dataset = ProteinPairDataset(val_data, protein_embeddings)
+    test1_dataset = ProteinPairDataset(test1_data, protein_embeddings)
+    test2_dataset = ProteinPairDataset(test2_data, protein_embeddings)
     
-    print(f"📊 Dataset sizes:")
-    print(f"   Training: {len(train_dataset):,} samples")
-    print(f"   Validation: {len(val_dataset):,} samples (full)")
+    print(f"Train samples: {len(train_dataset)}")
+    print(f"Validation samples: {len(val_dataset)}")
+    print(f"Test1 samples: {len(test1_dataset)}")
+    print(f"Test2 samples: {len(test2_dataset)}")
     
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print(f"   Device: {device}")
+    # Create data loaders
+    batch_size = 32
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, 
+                             collate_fn=collate_fn, drop_last=True, num_workers=2)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, 
+                           collate_fn=collate_fn, num_workers=2)
+    test1_loader = DataLoader(test1_dataset, batch_size=batch_size, shuffle=False, 
+                             collate_fn=collate_fn, num_workers=2)
+    test2_loader = DataLoader(test2_dataset, batch_size=batch_size, shuffle=False, 
+                             collate_fn=collate_fn, num_workers=2)
     
-    # Model configurations to test - including both single-layer and multi-layer variants
-    configs = [
-        # Original v4.1 Single-layer variants
+    # Model configurations to test
+    model_configs = [
         {
-            'name': 'V4.1 Tiny (1L)',
-            'embed_dim': 64,
-            'max_length': 256,
-            'lr': 1e-2,
-            'weight_decay': 0.01,
-            'batch_size': 64,
-            'max_epochs': 40,
-            'use_scheduler': True,
-            'description': 'Ultra-small single-layer v4.1',
-            'model_class': 'simplified_v4_1'
-        },
-        {
-            'name': 'V4.1 Default (1L)',
-            'embed_dim': 128,
-            'max_length': 512,
+            'name': 'Simplified_v4.1_256',
+            'model_class': 'simplified',
+            'embed_dim': 256,
             'lr': 5e-3,
-            'weight_decay': 0.01,
-            'batch_size': 32,
-            'max_epochs': 40,
+            'max_epochs': 25,
             'use_scheduler': True,
-            'description': 'Default single-layer v4.1',
-            'model_class': 'simplified_v4_1'
+            'weight_decay': 0.01
         },
-        
-        # Enhanced Multi-layer variants (2-3 layers)
         {
-            'name': 'V4.1 Enhanced 2L-96d',
-            'embed_dim': 96,
-            'num_layers': 2,
-            'num_heads': 4,
-            'max_length': 384,
-            'lr': 4e-3,
-            'weight_decay': 0.01,
-            'batch_size': 48,
-            'max_epochs': 40,
+            'name': 'Enhanced_v4.1_256_2layers',
+            'model_class': 'enhanced',
+            'embed_dim': 256,
+            'num_transformer_layers': 2,
+            'num_heads': 8,
+            'lr': 3e-3,  # Slightly lower LR for transformer
+            'max_epochs': 30,
             'use_scheduler': True,
-            'description': '2-layer enhanced v4.1 (284K params)',
-            'model_class': 'enhanced_v4_1'
+            'weight_decay': 0.01
         },
         {
-            'name': 'V4.1 Enhanced 2L-128d',
-            'embed_dim': 128,
-            'num_layers': 2,
-            'num_heads': 4,
-            'max_length': 512,
-            'lr': 3e-3,
-            'weight_decay': 0.01,
-            'batch_size': 32,
-            'max_epochs': 40,
+            'name': 'Enhanced_v4.1_256_3layers',
+            'model_class': 'enhanced',
+            'embed_dim': 256,
+            'num_transformer_layers': 3,
+            'num_heads': 8,
+            'lr': 2e-3,  # Even lower LR for deeper model
+            'max_epochs': 35,
             'use_scheduler': True,
-            'description': '2-layer enhanced v4.1 (463K params)',
-            'model_class': 'enhanced_v4_1'
-        },
-        {
-            'name': 'V4.1 Enhanced 3L-96d',
-            'embed_dim': 96,
-            'num_layers': 3,
-            'num_heads': 4,
-            'max_length': 384,
-            'lr': 3e-3,
-            'weight_decay': 0.01,
-            'batch_size': 48,
-            'max_epochs': 40,
-            'use_scheduler': True,
-            'description': '3-layer enhanced v4.1 (359K params)',
-            'model_class': 'enhanced_v4_1'
-        },
-        
-        # High learning rate tests
-        {
-            'name': 'V4.1 High LR (1L)',
-            'embed_dim': 128,
-            'max_length': 512,
-            'lr': 1e-2,
-            'weight_decay': 0.005,
-            'batch_size': 32,
-            'max_epochs': 40,
-            'use_scheduler': False,
-            'description': 'High LR single-layer v4.1',
-            'model_class': 'simplified_v4_1'
-        },
-        {
-            'name': 'V4.1 Enhanced High LR (2L)',
-            'embed_dim': 96,
-            'num_layers': 2,
-            'num_heads': 4,
-            'max_length': 384,
-            'lr': 8e-3,
-            'weight_decay': 0.005,
-            'batch_size': 48,
-            'max_epochs': 40,
-            'use_scheduler': False,
-            'description': 'High LR 2-layer enhanced v4.1',
-            'model_class': 'enhanced_v4_1'
+            'weight_decay': 0.01
         }
     ]
     
-    results = {}
+    # Store results
+    all_results = {}
     
-    for config in configs:
+    # Train and evaluate each configuration
+    for config in model_configs:
         print(f"\n{'='*60}")
-        print(f"Testing: {config['name']}")
-        print(f"Description: {config['description']}")
+        print(f"🚀 TRAINING: {config['name']}")
         print(f"{'='*60}")
         
-        # Create data loaders
-        train_loader = DataLoader(
-            train_dataset,
-            batch_size=config['batch_size'],
-            shuffle=True,
-            collate_fn=collate_fn,
-            drop_last=True,
-            num_workers=2 if config['batch_size'] >= 16 else 0
-        )
-        
-        val_loader = DataLoader(
-            val_dataset,
-            batch_size=config['batch_size'],
-            shuffle=False,
-            collate_fn=collate_fn,
-            num_workers=2 if config['batch_size'] >= 16 else 0
-        )
-        
-        # Create model based on type
         try:
-            if config['model_class'] == 'enhanced_v4_1':
-                # Enhanced multi-layer model
-                model = EnhancedProteinInteractionClassifier(
-                    embed_dim=config['embed_dim'],
-                    num_layers=config['num_layers'],
-                    num_heads=config['num_heads'],
-                    max_length=config['max_length']
-                ).to(device)
-            else:
-                # Original single-layer model
-                model = SimplifiedProteinInteractionClassifier(
-                    embed_dim=config['embed_dim'],
-                    max_length=config['max_length']
-                ).to(device)
+            # Create model
+            if config['model_class'] == 'simplified':
+                model = create_model('simple', 
+                                   input_dim=960, 
+                                   hidden_dim=config['embed_dim'],
+                                   dropout=0.3)
+            elif config['model_class'] == 'enhanced':
+                model = create_model('enhanced',
+                                   input_dim=960,
+                                   hidden_dim=config['embed_dim'],
+                                   num_transformer_layers=config['num_transformer_layers'],
+                                   num_heads=config['num_heads'],
+                                   dropout=0.3)
             
-            # Train and evaluate (with model saving)
-            metrics = train_and_evaluate_model(model, train_loader, val_loader, config, device, save_dir=models_dir)
-            metrics['config'] = config
-            results[config['name']] = metrics
+            model = model.to(device)
             
-            # Summary
-            status = "✅ SUCCESS" if metrics['best_val_auc'] > 0.6 else "⚠️ PARTIAL" if metrics['best_val_auc'] > 0.55 else "❌ FAILED"
-            print(f"\n📊 Results: {status}")
-            print(f"   Best AUC: {metrics['best_val_auc']:.4f} (epoch {metrics['best_epoch']})")
-            print(f"   Parameters: {metrics['num_parameters']:,}")
-            print(f"   Stable training: {metrics['stable_training']}")
-            print(f"   Epochs completed: {metrics['epochs_completed']}")
+            # Train model
+            results = train_and_evaluate_model(
+                model, train_loader, val_loader, config, device, save_dir
+            )
             
-            # Print saved model info
-            if 'saved_models' in metrics:
-                saved = metrics['saved_models']
-                if saved:
-                    print(f"   💾 Saved models:")
-                    for model_type, path in saved.items():
-                        print(f"      {model_type}: {os.path.basename(path)}")
-                        
-        except Exception as e:
-            print(f"❌ Failed to test {config['name']}: {str(e)}")
-            results[config['name']] = {
-                'error': str(e),
-                'best_val_auc': 0.0,
-                'stable_training': False,
+            # Evaluate on test sets
+            print(f"\n📈 Evaluating {config['name']} on test sets...")
+            
+            test1_results = evaluate_on_test_set(model, test1_loader, device, "Test1")
+            test2_results = evaluate_on_test_set(model, test2_loader, device, "Test2")
+            
+            # Store comprehensive results
+            all_results[config['name']] = {
                 'config': config,
-                'saved_models': {},
-                'num_parameters': 0
+                'training_results': results,
+                'test1_results': test1_results,
+                'test2_results': test2_results
             }
-        
-        # Memory cleanup
-        if 'model' in locals():
-            del model
-        torch.cuda.empty_cache()
-    
-    # Final analysis
-    print(f"\n{'='*60}")
-    print("🎯 COMPREHENSIVE V4.1 ANALYSIS")
-    print(f"{'='*60}")
-    
-    # Sort by performance
-    working_models = [(name, r) for name, r in results.items() 
-                     if r.get('best_val_auc', 0) > 0.55 and r.get('stable_training', False)]
-    working_models.sort(key=lambda x: x[1]['best_val_auc'], reverse=True)
-    
-    failing_models = [(name, r) for name, r in results.items() 
-                     if r.get('best_val_auc', 0) <= 0.55 or not r.get('stable_training', False)]
-    
-    print(f"\n✅ WORKING MODELS ({len(working_models)}):")
-    for name, result in working_models:
-        config = result['config']
-        layers = config.get('num_layers', 1)
-        print(f"   {name}:")
-        print(f"      AUC: {result['best_val_auc']:.4f}")
-        print(f"      Parameters: {result.get('num_parameters', 0):,}")
-        print(f"      Config: {layers}L, Embed={config['embed_dim']}, LR={config['lr']}, Batch={config['batch_size']}")
-        # Show saved models
-        saved = result.get('saved_models', {})
-        if saved:
-            print(f"      Saved models: {', '.join(saved.keys())}")
-    
-    print(f"\n❌ FAILING MODELS ({len(failing_models)}):")
-    for name, result in failing_models:
-        config = result['config']
-        issue = "Training unstable" if not result.get('stable_training', False) else f"Low AUC ({result.get('best_val_auc', 0):.3f})"
-        print(f"   {name}: {issue}")
-        if 'error' in result:
-            print(f"      Error: {result['error']}")
-    
-    # Architecture comparison
-    if working_models:
-        single_layer = [(n, r) for n, r in working_models if r['config'].get('num_layers', 1) == 1]
-        multi_layer = [(n, r) for n, r in working_models if r['config'].get('num_layers', 1) > 1]
-        
-        print(f"\n🔬 ARCHITECTURE COMPARISON:")
-        if single_layer:
-            avg_single = np.mean([r['best_val_auc'] for _, r in single_layer])
-            print(f"   Single-layer (1L): {len(single_layer)} models, {avg_single:.3f} avg AUC")
-        if multi_layer:
-            avg_multi = np.mean([r['best_val_auc'] for _, r in multi_layer])
-            print(f"   Multi-layer (2-3L): {len(multi_layer)} models, {avg_multi:.3f} avg AUC")
             
-            # Breakdown by layer count
-            two_layer = [(n, r) for n, r in multi_layer if r['config']['num_layers'] == 2]
-            three_layer = [(n, r) for n, r in multi_layer if r['config']['num_layers'] == 3]
+            # Save test predictions and logits
+            save_test_predictions(model, test1_loader, device, 
+                                os.path.join(results_dir, f"{config['name']}_test1_predictions.json"))
+            save_test_predictions(model, test2_loader, device, 
+                                os.path.join(results_dir, f"{config['name']}_test2_predictions.json"))
             
-            if two_layer:
-                avg_2l = np.mean([r['best_val_auc'] for _, r in two_layer])
-                print(f"   2-layer models: {len(two_layer)} models, {avg_2l:.3f} avg AUC")
-            if three_layer:
-                avg_3l = np.mean([r['best_val_auc'] for _, r in three_layer])
-                print(f"   3-layer models: {len(three_layer)} models, {avg_3l:.3f} avg AUC")
+            # Generate plots
+            create_evaluation_plots(config['name'], results, test1_results, test2_results, results_dir)
+            
+            print(f"✅ {config['name']} completed successfully!")
+            
+        except Exception as e:
+            print(f"❌ Error training {config['name']}: {str(e)}")
+            all_results[config['name']] = {'error': str(e)}
+            continue
     
-    # Save comprehensive results
-    results_file = os.path.join(results_dir, 'v4_1_comparison_results.json')
+    # Generate comparison report
+    generate_comparison_report(all_results, results_dir)
     
-    # Prepare results for JSON (remove non-serializable items)
-    json_results = {}
-    for name, result in results.items():
-        json_result = {k: v for k, v in result.items() if k != 'history'}
-        if 'history' in result:
-            # Only save summary of history
-            history = result['history']
-            json_result['history_summary'] = {
-                'epochs': len(history.get('train_loss', [])),
-                'final_train_loss': history['train_loss'][-1] if history.get('train_loss') else None,
-                'best_val_auc': max(history['val_auc']) if history.get('val_auc') else 0
-            }
-        json_results[name] = json_result
+    print(f"\n🎉 COMPARISON COMPLETE!")
+    print(f"Results saved to: {results_dir}")
+    print(f"Models saved to: {save_dir}")
+
+
+def evaluate_on_test_set(model, test_loader, device, test_name):
+    """Evaluate model on test set and return comprehensive metrics"""
+    from sklearn.metrics import precision_recall_curve, average_precision_score
     
-    with open(results_file, 'w') as f:
-        json.dump(json_results, f, indent=2)
+    model.eval()
+    all_preds = []
+    all_probs = []
+    all_logits = []
+    all_labels = []
+    all_ids = []
     
-    print(f"\n📁 All v4.1 results saved to: {results_dir}")
-    print(f"   📊 Results summary: v4_1_comparison_results.json")
-    print(f"   💾 Model files: saved_models/")
+    with torch.no_grad():
+        for emb_a, emb_b, lengths_a, lengths_b, interactions in test_loader:
+            emb_a = emb_a.to(device).float()
+            emb_b = emb_b.to(device).float()
+            lengths_a = lengths_a.to(device)
+            lengths_b = lengths_b.to(device)
+            interactions = interactions.to(device).float()
+            
+            logits = model(emb_a, emb_b, lengths_a, lengths_b)
+            if logits.dim() > 1:
+                logits = logits.squeeze(-1)
+            
+            probs = torch.sigmoid(logits)
+            preds = (probs > 0.5).float()
+            
+            all_logits.extend(logits.cpu().numpy())
+            all_probs.extend(probs.cpu().numpy())
+            all_preds.extend(preds.cpu().numpy())
+            all_labels.extend(interactions.cpu().numpy())
     
-    # Final recommendation
-    if working_models:
-        best_model = working_models[0]
-        print(f"\n🏆 BEST MODEL: {best_model[0]}")
-        print(f"   AUC: {best_model[1]['best_val_auc']:.4f}")
-        print(f"   Parameters: {best_model[1]['num_parameters']:,}")
-        config = best_model[1]['config']
-        layers = config.get('num_layers', 1)
-        print(f"   Architecture: {layers} layer(s), {config['embed_dim']} embed_dim")
-        print(f"   Training: LR={config['lr']}, Batch={config['batch_size']}")
+    # Calculate metrics
+    auroc = roc_auc_score(all_labels, all_probs)
+    auprc = average_precision_score(all_labels, all_probs)
+    accuracy = accuracy_score(all_labels, all_preds)
+    f1 = f1_score(all_labels, all_preds)
+    precision = precision_score(all_labels, all_preds)
+    recall = recall_score(all_labels, all_preds)
+    
+    # Get precision-recall curve
+    precision_curve, recall_curve, _ = precision_recall_curve(all_labels, all_probs)
+    
+    results = {
+        'test_name': test_name,
+        'auroc': auroc,
+        'auprc': auprc,
+        'accuracy': accuracy,
+        'f1_score': f1,
+        'precision': precision,
+        'recall': recall,
+        'predictions': all_preds,
+        'probabilities': all_probs,
+        'logits': all_logits,
+        'labels': all_labels,
+        'precision_curve': precision_curve.tolist(),
+        'recall_curve': recall_curve.tolist()
+    }
+    
+    print(f"   {test_name} - AUROC: {auroc:.4f}, AUPRC: {auprc:.4f}, Acc: {accuracy:.4f}, F1: {f1:.4f}")
     
     return results
 
+
+def save_test_predictions(model, test_loader, device, save_path):
+    """Save detailed test predictions with logits"""
+    model.eval()
+    predictions = []
+    
+    with torch.no_grad():
+        batch_idx = 0
+        for emb_a, emb_b, lengths_a, lengths_b, interactions in test_loader:
+            emb_a = emb_a.to(device).float()
+            emb_b = emb_b.to(device).float()
+            lengths_a = lengths_a.to(device)
+            lengths_b = lengths_b.to(device)
+            interactions = interactions.to(device).float()
+            
+            logits = model(emb_a, emb_b, lengths_a, lengths_b)
+            if logits.dim() > 1:
+                logits = logits.squeeze(-1)
+            
+            probs = torch.sigmoid(logits)
+            preds = (probs > 0.5).float()
+            
+            # Store batch predictions
+            for i in range(len(interactions)):
+                predictions.append({
+                    'batch_idx': batch_idx,
+                    'sample_idx': i,
+                    'true_label': int(interactions[i].item()),
+                    'prediction': int(preds[i].item()),
+                    'probability': float(probs[i].item()),
+                    'logit': float(logits[i].item())
+                })
+            
+            batch_idx += 1
+    
+    # Save to JSON
+    with open(save_path, 'w') as f:
+        json.dump(predictions, f, indent=2)
+    
+    print(f"   💾 Saved predictions to: {save_path}")
+
+
+def create_evaluation_plots(model_name, training_results, test1_results, test2_results, results_dir):
+    """Create comprehensive evaluation plots"""
+    import matplotlib.pyplot as plt
+    from sklearn.metrics import roc_curve
+    
+    # Create figure with subplots
+    fig, axes = plt.subplots(2, 3, figsize=(18, 12))
+    fig.suptitle(f'{model_name} - Comprehensive Evaluation', fontsize=16, fontweight='bold')
+    
+    # Training curves
+    history = training_results['history']
+    
+    # Plot 1: Loss curves
+    axes[0, 0].plot(history['train_loss'], label='Train Loss', color='blue')
+    axes[0, 0].plot(history['val_loss'], label='Val Loss', color='red')
+    axes[0, 0].set_title('Training & Validation Loss')
+    axes[0, 0].set_xlabel('Epoch')
+    axes[0, 0].set_ylabel('Loss')
+    axes[0, 0].legend()
+    axes[0, 0].grid(True, alpha=0.3)
+    
+    # Plot 2: AUC curves
+    axes[0, 1].plot(history['train_auc'], label='Train AUC', color='blue')
+    axes[0, 1].plot(history['val_auc'], label='Val AUC', color='red')
+    axes[0, 1].set_title('Training & Validation AUC')
+    axes[0, 1].set_xlabel('Epoch')
+    axes[0, 1].set_ylabel('AUC')
+    axes[0, 1].legend()
+    axes[0, 1].grid(True, alpha=0.3)
+    
+    # Plot 3: Learning rate
+    axes[0, 2].plot(history['learning_rate'], color='green')
+    axes[0, 2].set_title('Learning Rate Schedule')
+    axes[0, 2].set_xlabel('Epoch')
+    axes[0, 2].set_ylabel('Learning Rate')
+    axes[0, 2].set_yscale('log')
+    axes[0, 2].grid(True, alpha=0.3)
+    
+    # Plot 4: ROC curves for test sets
+    # Test1 ROC
+    fpr1, tpr1, _ = roc_curve(test1_results['labels'], test1_results['probabilities'])
+    axes[1, 0].plot(fpr1, tpr1, label=f"Test1 (AUC={test1_results['auroc']:.3f})", color='blue')
+    
+    # Test2 ROC
+    fpr2, tpr2, _ = roc_curve(test2_results['labels'], test2_results['probabilities'])
+    axes[1, 0].plot(fpr2, tpr2, label=f"Test2 (AUC={test2_results['auroc']:.3f})", color='red')
+    
+    axes[1, 0].plot([0, 1], [0, 1], 'k--', alpha=0.5)
+    axes[1, 0].set_title('ROC Curves - Test Sets')
+    axes[1, 0].set_xlabel('False Positive Rate')
+    axes[1, 0].set_ylabel('True Positive Rate')
+    axes[1, 0].legend()
+    axes[1, 0].grid(True, alpha=0.3)
+    
+    # Plot 5: Precision-Recall curves
+    axes[1, 1].plot(test1_results['recall_curve'], test1_results['precision_curve'], 
+                    label=f"Test1 (AUPRC={test1_results['auprc']:.3f})", color='blue')
+    axes[1, 1].plot(test2_results['recall_curve'], test2_results['precision_curve'], 
+                    label=f"Test2 (AUPRC={test2_results['auprc']:.3f})", color='red')
+    axes[1, 1].set_title('Precision-Recall Curves')
+    axes[1, 1].set_xlabel('Recall')
+    axes[1, 1].set_ylabel('Precision')
+    axes[1, 1].legend()
+    axes[1, 1].grid(True, alpha=0.3)
+    
+    # Plot 6: Test metrics comparison
+    metrics = ['AUROC', 'AUPRC', 'Accuracy', 'F1 Score']
+    test1_vals = [test1_results['auroc'], test1_results['auprc'], 
+                  test1_results['accuracy'], test1_results['f1_score']]
+    test2_vals = [test2_results['auroc'], test2_results['auprc'], 
+                  test2_results['accuracy'], test2_results['f1_score']]
+    
+    x = np.arange(len(metrics))
+    width = 0.35
+    
+    axes[1, 2].bar(x - width/2, test1_vals, width, label='Test1', color='blue', alpha=0.7)
+    axes[1, 2].bar(x + width/2, test2_vals, width, label='Test2', color='red', alpha=0.7)
+    axes[1, 2].set_title('Test Set Metrics Comparison')
+    axes[1, 2].set_ylabel('Score')
+    axes[1, 2].set_xticks(x)
+    axes[1, 2].set_xticklabels(metrics, rotation=45)
+    axes[1, 2].legend()
+    axes[1, 2].grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    
+    # Save plot
+    plot_path = os.path.join(results_dir, f'{model_name}_evaluation_plots.png')
+    plt.savefig(plot_path, dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    print(f"   📊 Saved evaluation plots: {plot_path}")
+
+
+def generate_comparison_report(all_results, results_dir):
+    """Generate comprehensive comparison report"""
+    
+    print("\n" + "="*80)
+    print("📋 FINAL COMPARISON REPORT")
+    print("="*80)
+    
+    # Create summary table
+    summary_data = []
+    
+    for model_name, results in all_results.items():
+        if 'error' in results:
+            print(f"❌ {model_name}: {results['error']}")
+            continue
+            
+        training = results['training_results']
+        test1 = results['test1_results']
+        test2 = results['test2_results']
+        
+        summary_data.append({
+            'Model': model_name,
+            'Parameters': f"{training['num_parameters']:,}",
+            'Best Val AUC': f"{training['best_val_auc']:.4f}",
+            'Test1 AUROC': f"{test1['auroc']:.4f}",
+            'Test1 AUPRC': f"{test1['auprc']:.4f}",
+            'Test2 AUROC': f"{test2['auroc']:.4f}",
+            'Test2 AUPRC': f"{test2['auprc']:.4f}",
+            'Stable Training': "✅" if training['stable_training'] else "❌"
+        })
+        
+        print(f"\n🔹 {model_name}:")
+        print(f"   Parameters: {training['num_parameters']:,}")
+        print(f"   Best Val AUC: {training['best_val_auc']:.4f} (epoch {training['best_epoch']})")
+        print(f"   Test1 - AUROC: {test1['auroc']:.4f}, AUPRC: {test1['auprc']:.4f}")
+        print(f"   Test2 - AUROC: {test2['auroc']:.4f}, AUPRC: {test2['auprc']:.4f}")
+        print(f"   Stable Training: {'Yes' if training['stable_training'] else 'No'}")
+    
+    # Save detailed results
+    detailed_report_path = os.path.join(results_dir, 'detailed_comparison_report.json')
+    with open(detailed_report_path, 'w') as f:
+        json.dump(all_results, f, indent=2, default=str)
+    
+    # Save summary table
+    import pandas as pd
+    summary_df = pd.DataFrame(summary_data)
+    summary_csv_path = os.path.join(results_dir, 'model_comparison_summary.csv')
+    summary_df.to_csv(summary_csv_path, index=False)
+    
+    print(f"\n💾 Detailed report saved: {detailed_report_path}")
+    print(f"💾 Summary table saved: {summary_csv_path}")
+    
+    # Print best models
+    if summary_data:
+        best_test1_auroc = max(summary_data, key=lambda x: float(x['Test1 AUROC'].split(':')[-1] if ':' in x['Test1 AUROC'] else x['Test1 AUROC']))
+        best_test2_auroc = max(summary_data, key=lambda x: float(x['Test2 AUROC'].split(':')[-1] if ':' in x['Test2 AUROC'] else x['Test2 AUROC']))
+        
+        print(f"\n🏆 BEST PERFORMING MODELS:")
+        print(f"   Test1 AUROC: {best_test1_auroc['Model']} ({best_test1_auroc['Test1 AUROC']})")
+        print(f"   Test2 AUROC: {best_test2_auroc['Model']} ({best_test2_auroc['Test2 AUROC']})")
+
+
 if __name__ == "__main__":
-    results = main() 
+    main()

@@ -16,8 +16,7 @@ from tqdm import tqdm
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
 import math
 
-
-# Reuse data loading functions from v4.py
+# First, let's examine the data structure to identify column names
 def examine_dataframe(df):
     """Print the structure of the dataframe to identify column names"""
     print("DataFrame columns:", df.columns.tolist())
@@ -226,190 +225,58 @@ def collate_fn(batch):
     return padded_a, padded_b, lengths_a, lengths_b, interactions
 
 
-class SimplifiedProteinEncoder(nn.Module):
+class TransformerEnhancedProteinClassifier(nn.Module):
     """
-    Drastically simplified protein encoder - targeting 200-500K parameters total
+    Enhanced version of SimplifiedProteinClassifier with transformer layers
+    Based on the proven architecture but with added attention mechanism
     """
-    def __init__(self, input_dim=960, embed_dim=128, max_length=512):
+    def __init__(self, input_dim=960, hidden_dim=256, num_transformer_layers=2, 
+                 num_heads=8, dropout=0.3):
         super().__init__()
         
-        self.max_length = max_length
+        # Initial projection to hidden dimension
+        self.input_projection = nn.Linear(input_dim, hidden_dim)
         
-        # Simple projection to smaller dimension
-        self.input_proj = nn.Linear(input_dim, embed_dim)
-        
-        # Single lightweight self-attention layer
-        self.self_attn = nn.MultiheadAttention(
-            embed_dim, num_heads=4, dropout=0.1, batch_first=True
+        # Transformer encoder layers for sequence modeling
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=hidden_dim,
+            nhead=num_heads,
+            dim_feedforward=hidden_dim * 2,
+            dropout=dropout,
+            activation='relu',
+            batch_first=True,
+            norm_first=True  # Pre-norm for better training stability
+        )
+        self.transformer_encoder = nn.TransformerEncoder(
+            encoder_layer, 
+            num_layers=num_transformer_layers,
+            norm=nn.LayerNorm(hidden_dim)
         )
         
-        # Simple normalization and feedforward
-        self.norm1 = nn.LayerNorm(embed_dim)
-        self.norm2 = nn.LayerNorm(embed_dim)
-        
-        self.ffn = nn.Sequential(
-            nn.Linear(embed_dim, embed_dim * 2),
-            nn.GELU(),
-            nn.Dropout(0.1),
-            nn.Linear(embed_dim * 2, embed_dim)
-        )
-        
-        # Simple pooling for sequence compression
-        self.pool_proj = nn.Linear(embed_dim, embed_dim)
-        
-    def forward(self, x, lengths):
-        """
-        Args:
-            x: (B, L, 960) padded protein embeddings
-            lengths: (B,) actual sequence lengths
-        Returns:
-            (B, embed_dim) protein representation
-        """
-        B, L, _ = x.shape
-        device = x.device
-        
-        # Truncate if too long for memory efficiency
-        if L > self.max_length:
-            x = x[:, :self.max_length]
-            lengths = torch.clamp(lengths, max=self.max_length)
-            L = self.max_length
-        
-        # Create padding mask
-        mask = torch.arange(L, device=device).unsqueeze(0) >= lengths.unsqueeze(1)
-        
-        # Project to smaller dimension
-        x = self.input_proj(x)  # (B, L, embed_dim)
-        
-        # Single self-attention layer with residual connection
-        attn_out, _ = self.self_attn(x, x, x, key_padding_mask=mask)
-        x = self.norm1(x + attn_out)
-        
-        # Simple feedforward with residual
-        ffn_out = self.ffn(x)
-        x = self.norm2(x + ffn_out)
-        
-        # Simple average pooling with masking
-        # Create inverse mask for pooling (1 for valid positions, 0 for padding)
-        valid_mask = ~mask  # (B, L)
-        valid_counts = valid_mask.sum(dim=1, keepdim=True).float()  # (B, 1)
-        
-        # Masked average pooling
-        x_masked = x * valid_mask.unsqueeze(-1).float()  # (B, L, embed_dim)
-        pooled = x_masked.sum(dim=1) / torch.clamp(valid_counts, min=1.0)  # (B, embed_dim)
-        
-        # Final projection
-        output = self.pool_proj(pooled)  # (B, embed_dim)
-        
-        return output
-
-
-class SimpleInteractionLayer(nn.Module):
-    """
-    Simple concatenation-based interaction (no cross-attention)
-    """
-    def __init__(self, embed_dim=128):
-        super().__init__()
-        
-        # Simple processing of concatenated features
-        self.interaction_net = nn.Sequential(
-            nn.Linear(embed_dim * 2, embed_dim),
-            nn.LayerNorm(embed_dim),
-            nn.GELU(),
-            nn.Dropout(0.1),
-            nn.Linear(embed_dim, embed_dim)
-        )
-        
-    def forward(self, emb_a, emb_b):
-        """
-        Args:
-            emb_a: (B, embed_dim) protein A representation
-            emb_b: (B, embed_dim) protein B representation
-        Returns:
-            (B, embed_dim) interaction representation
-        """
-        # Simple concatenation
-        combined = torch.cat([emb_a, emb_b], dim=-1)  # (B, 2*embed_dim)
-        
-        # Process interaction
-        interaction = self.interaction_net(combined)  # (B, embed_dim)
-        
-        return interaction
-
-
-class SimpleMLPDecoder(nn.Module):
-    """
-    Simple MLP decoder for classification
-    """
-    def __init__(self, input_dim=128, hidden_dim=64):
-        super().__init__()
-        
-        self.decoder = nn.Sequential(
-            nn.Linear(input_dim, hidden_dim),
+        # Keep the proven protein encoder structure after transformer
+        self.protein_encoder = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim),
             nn.LayerNorm(hidden_dim),
-            nn.GELU(),
-            nn.Dropout(0.2),
-            nn.Linear(hidden_dim, 1)
+            nn.ReLU(),
+            nn.Dropout(dropout)
         )
         
-        # Initialize weights
+        # Keep the proven interaction layer exactly the same
+        self.interaction_layer = nn.Sequential(
+            nn.Linear(hidden_dim * 2, hidden_dim),
+            nn.LayerNorm(hidden_dim),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, hidden_dim // 2),
+            nn.LayerNorm(hidden_dim // 2),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim // 2, 1)
+        )
+        
+        # Better weight initialization
         self.apply(self._init_weights)
-        
-    def _init_weights(self, module):
-        if isinstance(module, nn.Linear):
-            torch.nn.init.xavier_uniform_(module.weight)
-            if module.bias is not None:
-                torch.nn.init.zeros_(module.bias)
     
-    def forward(self, x):
-        """
-        Args:
-            x: (B, input_dim) interaction representation
-        Returns:
-            (B, 1) classification logits
-        """
-        return self.decoder(x)
-
-
-class SimplifiedProteinInteractionClassifier(nn.Module):
-    """
-    Simplified protein-protein interaction classifier (v4.1)
-    
-    Key improvements based on debug analysis:
-    1. Removed complex cross-attention → Simple concatenation
-    2. Drastically reduced parameters → Target 200-500K range
-    3. Simplified architecture → Single attention layer
-    4. Better initialization and normalization
-    5. Higher learning rates supported (5e-3 to 1e-2)
-    
-    Architecture:
-    1. Protein A/B → SimplifiedProteinEncoder → Protein Representations
-    2. Simple concatenation and interaction processing  
-    3. Simple MLP decoder for binary classification
-    """
-    def __init__(self, embed_dim=128, max_length=512):
-        super().__init__()
-        
-        self.embed_dim = embed_dim
-        
-        # Shared simplified protein encoder
-        self.protein_encoder = SimplifiedProteinEncoder(
-            input_dim=960,
-            embed_dim=embed_dim,
-            max_length=max_length
-        )
-        
-        # Simple interaction layer (concatenation-based)
-        self.interaction_layer = SimpleInteractionLayer(embed_dim=embed_dim)
-        
-        # Simple MLP decoder
-        self.decoder = SimpleMLPDecoder(
-            input_dim=embed_dim,
-            hidden_dim=embed_dim // 2
-        )
-        
-        # Initialize weights properly
-        self.apply(self._init_weights)
-        
     def _init_weights(self, module):
         if isinstance(module, nn.Linear):
             torch.nn.init.xavier_uniform_(module.weight)
@@ -426,127 +293,160 @@ class SimplifiedProteinInteractionClassifier(nn.Module):
             emb_b: (B, L_b, 960) protein B embeddings  
             lengths_a: (B,) actual lengths for protein A
             lengths_b: (B,) actual lengths for protein B
-        Returns:
-            (B, 1) interaction prediction logits
         """
-        # Encode both proteins with shared encoder
-        repr_a = self.protein_encoder(emb_a, lengths_a)  # (B, embed_dim)
-        repr_b = self.protein_encoder(emb_b, lengths_b)  # (B, embed_dim)
+        device = emb_a.device
         
-        # Simple interaction processing
-        interaction_repr = self.interaction_layer(repr_a, repr_b)  # (B, embed_dim)
+        # Project to hidden dimension
+        emb_a_proj = self.input_projection(emb_a)  # (B, L_a, hidden_dim)
+        emb_b_proj = self.input_projection(emb_b)  # (B, L_b, hidden_dim)
         
-        # Classification
-        logits = self.decoder(interaction_repr)  # (B, 1)
+        # Create attention masks (True for padding positions)
+        max_len_a = emb_a.size(1)
+        max_len_b = emb_b.size(1)
+        
+        mask_a = torch.arange(max_len_a, device=device).unsqueeze(0) >= lengths_a.unsqueeze(1)
+        mask_b = torch.arange(max_len_b, device=device).unsqueeze(0) >= lengths_b.unsqueeze(1)
+        
+        # Apply transformer encoder with attention masks
+        emb_a_transformed = self.transformer_encoder(emb_a_proj, src_key_padding_mask=mask_a)
+        emb_b_transformed = self.transformer_encoder(emb_b_proj, src_key_padding_mask=mask_b)
+        
+        # Average pooling with mask (same as proven approach)
+        mask_a_float = ~mask_a  # Convert to actual sequence mask (False for padding)
+        mask_b_float = ~mask_b
+        
+        emb_a_avg = (emb_a_transformed * mask_a_float.unsqueeze(-1).float()).sum(dim=1) / lengths_a.unsqueeze(-1).float()
+        emb_b_avg = (emb_b_transformed * mask_b_float.unsqueeze(-1).float()).sum(dim=1) / lengths_b.unsqueeze(-1).float()
+        
+        # Use the proven encoder and interaction layers
+        enc_a = self.protein_encoder(emb_a_avg)  # (B, hidden_dim)
+        enc_b = self.protein_encoder(emb_b_avg)  # (B, hidden_dim)
+        
+        # Combine and predict interaction (exactly as before)
+        combined = torch.cat([enc_a, enc_b], dim=-1)  # (B, 2*hidden_dim)
+        logits = self.interaction_layer(combined)  # (B, 1)
         
         return logits
 
 
-def train_model(train_data, val_data, embeddings_dict, 
-                embed_dim=128, max_length=512, epochs=50, batch_size=32, 
-                learning_rate=5e-3, weight_decay=0.01, use_scheduler=True,
-                save_every_epochs=10, device='cuda' if torch.cuda.is_available() else 'cpu'):
+class SimplifiedProteinClassifier(nn.Module):
     """
-    Train the simplified protein interaction prediction model (v4.1)
+    Proven simplified model architecture - keep as fallback
     """
-    # Create datasets
-    train_dataset = ProteinPairDataset(train_data, embeddings_dict)
-    val_dataset = ProteinPairDataset(val_data, embeddings_dict)
-    
-    # Create data loaders
-    train_loader = DataLoader(
-        train_dataset, 
-        batch_size=batch_size, 
-        shuffle=True, 
-        collate_fn=collate_fn,
-        num_workers=2,
-        pin_memory=True,
-        drop_last=True
-    )
-    val_loader = DataLoader(
-        val_dataset, 
-        batch_size=batch_size, 
-        shuffle=False, 
-        collate_fn=collate_fn,
-        num_workers=2,
-        pin_memory=True
-    )
-    
-    # Calculate training statistics
-    num_train_batches = len(train_loader)
-    num_val_batches = len(val_loader)
-    total_train_steps = num_train_batches * epochs
-    
-    print(f"📊 TRAINING STATISTICS (v4.1):")
-    print(f"Training samples: {len(train_dataset):,}")
-    print(f"Validation samples: {len(val_dataset):,}")
-    print(f"Batch size: {batch_size}")
-    print(f"Training batches per epoch: {num_train_batches}")
-    print(f"Total epochs: {epochs}")
-    print(f"Learning rate: {learning_rate}")
-    print(f"Use scheduler: {use_scheduler}")
-    print(f"Target parameters: 200-500K")
-    
-    # Create simplified model
-    model = SimplifiedProteinInteractionClassifier(
-        embed_dim=embed_dim,
-        max_length=max_length
-    ).to(device)
-    
-    num_params = sum(p.numel() for p in model.parameters())
-    print(f"Model parameters: {num_params:,} (Target: 200-500K)")
-    
-    if num_params > 600000:
-        print(f"⚠️ Warning: Model has {num_params:,} parameters, may be too large")
-    elif num_params < 150000:
-        print(f"⚠️ Warning: Model has {num_params:,} parameters, may be too small")
-    else:
-        print(f"✅ Model size in target range")
-    
-    # Use DataParallel if multiple GPUs available
-    if torch.cuda.device_count() > 1:
-        print(f"Using {torch.cuda.device_count()} GPUs")
-        model = nn.DataParallel(model)
-    
-    # Optimizer with higher learning rate
-    optimizer = torch.optim.AdamW(
-        model.parameters(), 
-        lr=learning_rate, 
-        weight_decay=weight_decay
-    )
-    
-    # Learning rate scheduler - OneCycle for better training
-    scheduler = None
-    if use_scheduler:
-        scheduler = torch.optim.lr_scheduler.OneCycleLR(
-            optimizer, 
-            max_lr=learning_rate,
-            epochs=epochs,
-            steps_per_epoch=num_train_batches,
-            pct_start=0.1  # 10% warmup
+    def __init__(self, input_dim=960, hidden_dim=256, dropout=0.3):
+        super().__init__()
+        
+        # Simple encoder for each protein
+        self.protein_encoder = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.LayerNorm(hidden_dim),
+            nn.ReLU(),
+            nn.Dropout(dropout)
         )
+        
+        # Simple interaction layer
+        self.interaction_layer = nn.Sequential(
+            nn.Linear(hidden_dim * 2, hidden_dim),
+            nn.LayerNorm(hidden_dim),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, hidden_dim // 2),
+            nn.LayerNorm(hidden_dim // 2),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim // 2, 1)
+        )
+        
+        # Better weight initialization
+        self.apply(self._init_weights)
     
-    # Loss function
+    def _init_weights(self, module):
+        if isinstance(module, nn.Linear):
+            torch.nn.init.xavier_uniform_(module.weight)
+            if module.bias is not None:
+                torch.nn.init.zeros_(module.bias)
+        elif isinstance(module, nn.LayerNorm):
+            torch.nn.init.ones_(module.weight)
+            torch.nn.init.zeros_(module.bias)
+    
+    def forward(self, emb_a, emb_b, lengths_a, lengths_b):
+        """
+        Args:
+            emb_a: (B, L_a, 960) protein A embeddings
+            emb_b: (B, L_b, 960) protein B embeddings  
+            lengths_a: (B,) actual lengths for protein A
+            lengths_b: (B,) actual lengths for protein B
+        """
+        # Simple average pooling for variable length sequences
+        device = emb_a.device
+        
+        # Create masks for averaging
+        mask_a = torch.arange(emb_a.size(1), device=device).unsqueeze(0) < lengths_a.unsqueeze(1)
+        mask_b = torch.arange(emb_b.size(1), device=device).unsqueeze(0) < lengths_b.unsqueeze(1)
+        
+        # Average pooling with mask
+        emb_a_avg = (emb_a * mask_a.unsqueeze(-1).float()).sum(dim=1) / lengths_a.unsqueeze(-1).float()
+        emb_b_avg = (emb_b * mask_b.unsqueeze(-1).float()).sum(dim=1) / lengths_b.unsqueeze(-1).float()
+        
+        # Encode proteins
+        enc_a = self.protein_encoder(emb_a_avg)  # (B, hidden_dim)
+        enc_b = self.protein_encoder(emb_b_avg)  # (B, hidden_dim)
+        
+        # Combine and predict interaction
+        combined = torch.cat([enc_a, enc_b], dim=-1)  # (B, 2*hidden_dim)
+        logits = self.interaction_layer(combined)  # (B, 1)
+        
+        return logits
+
+
+def create_model(model_type='enhanced', **kwargs):
+    """
+    Factory function to create models
+    
+    Args:
+        model_type: 'simple' or 'enhanced'
+        **kwargs: model parameters
+    """
+    if model_type == 'simple':
+        return SimplifiedProteinClassifier(**kwargs)
+    elif model_type == 'enhanced':
+        return TransformerEnhancedProteinClassifier(**kwargs)
+    else:
+        raise ValueError(f"Unknown model type: {model_type}")
+
+
+# Training utilities
+def train_model(model, train_loader, val_loader, num_epochs=20, lr=5e-3, device='cuda'):
+    """
+    Train a protein interaction model with the proven training setup
+    
+    Args:
+        model: The model to train
+        train_loader: Training data loader
+        val_loader: Validation data loader
+        num_epochs: Number of epochs to train
+        lr: Learning rate
+        device: Device to train on
+    """
+    print(f"Training model with {sum(p.numel() for p in model.parameters()):,} parameters")
+    
+    model = model.to(device)
+    
+    # Use the proven training setup
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=0.01)
+    scheduler = torch.optim.lr_scheduler.OneCycleLR(
+        optimizer, 
+        max_lr=lr, 
+        epochs=num_epochs,
+        steps_per_epoch=len(train_loader),
+        pct_start=0.1
+    )
     criterion = nn.BCEWithLogitsLoss()
     
-    # Training setup
     best_val_auc = 0
-    best_val_loss = float('inf')
     history = []
     
-    # Create log directory
-    os.makedirs('logs', exist_ok=True)
-    os.makedirs('models', exist_ok=True)
-    ts = datetime.now().strftime('%Y%m%d-%H%M%S')
-    log_path = f'logs/ppi_v4_1_{ts}.json'
-    best_path = f'models/ppi_v4_1_best_{ts}.pth'
-    checkpoint_dir = f'models/checkpoints_v4_1_{ts}'
-    os.makedirs(checkpoint_dir, exist_ok=True)
-    
-    print(f"Best model will be saved to: {best_path}")
-    print(f"Checkpoints will be saved to: {checkpoint_dir}/")
-    
-    for epoch in range(1, epochs + 1):
+    for epoch in range(1, num_epochs + 1):
         # Training phase
         model.train()
         train_losses = []
@@ -554,35 +454,26 @@ def train_model(train_data, val_data, embeddings_dict,
         train_probs = []
         train_labels = []
         
-        for batch_idx, (emb_a, emb_b, lengths_a, lengths_b, interactions) in enumerate(train_loader):
-            # Move to device
+        for emb_a, emb_b, lengths_a, lengths_b, interactions in train_loader:
             emb_a = emb_a.to(device).float()
             emb_b = emb_b.to(device).float()
             lengths_a = lengths_a.to(device)
             lengths_b = lengths_b.to(device)
             interactions = interactions.to(device).float()
             
-            # Forward pass
+            optimizer.zero_grad()
             logits = model(emb_a, emb_b, lengths_a, lengths_b)
-            
-            # Fix dimension mismatch
             if logits.dim() > 1:
                 logits = logits.squeeze(-1)
-            if interactions.dim() == 0:
-                interactions = interactions.unsqueeze(0)
-                
-            loss = criterion(logits, interactions)
             
-            # Backward pass
-            optimizer.zero_grad()
+            loss = criterion(logits, interactions)
             loss.backward()
             
             # Gradient clipping for stability
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             
             optimizer.step()
-            if scheduler:
-                scheduler.step()
+            scheduler.step()
             
             # Track metrics
             train_losses.append(loss.item())
@@ -592,11 +483,6 @@ def train_model(train_data, val_data, embeddings_dict,
                 train_preds.extend(preds.cpu().numpy())
                 train_probs.extend(probs.cpu().numpy())
                 train_labels.extend(interactions.cpu().numpy())
-            
-            if batch_idx % 50 == 0:
-                current_lr = scheduler.get_last_lr()[0] if scheduler else learning_rate
-                print(f'Epoch {epoch}/{epochs} Batch {batch_idx}/{num_train_batches} '
-                      f'Loss: {loss.item():.4f}, LR: {current_lr:.6f}')
         
         # Validation phase
         model.eval()
@@ -614,15 +500,12 @@ def train_model(train_data, val_data, embeddings_dict,
                 interactions = interactions.to(device).float()
                 
                 logits = model(emb_a, emb_b, lengths_a, lengths_b)
-                
                 if logits.dim() > 1:
                     logits = logits.squeeze(-1)
-                if interactions.dim() == 0:
-                    interactions = interactions.unsqueeze(0)
-                    
-                loss = criterion(logits, interactions)
                 
+                loss = criterion(logits, interactions)
                 val_losses.append(loss.item())
+                
                 probs = torch.sigmoid(logits)
                 preds = (probs > 0.5).float()
                 val_preds.extend(preds.cpu().numpy())
@@ -634,68 +517,15 @@ def train_model(train_data, val_data, embeddings_dict,
         val_loss = np.mean(val_losses)
         train_acc = accuracy_score(train_labels, train_preds)
         val_acc = accuracy_score(val_labels, val_preds)
+        train_auc = roc_auc_score(train_labels, train_probs)
+        val_auc = roc_auc_score(val_labels, val_probs)
         val_f1 = f1_score(val_labels, val_preds)
         
-        # Calculate AUC scores
-        train_auc = roc_auc_score(train_labels, train_probs) if len(set(train_labels)) > 1 else 0
-        val_auc = roc_auc_score(val_labels, val_probs) if len(set(val_labels)) > 1 else 0
-        
-        # Save best model based on AUC
+        # Save best model
         if val_auc > best_val_auc:
             best_val_auc = val_auc
-            best_val_loss = val_loss
-            torch.save({
-                'epoch': epoch,
-                'model_state_dict': model.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'scheduler_state_dict': scheduler.state_dict() if scheduler else None,
-                'val_auc': val_auc,
-                'val_acc': val_acc,
-                'val_loss': val_loss,
-                'train_auc': train_auc,
-                'train_acc': train_acc,
-                'train_loss': train_loss,
-                'config': {
-                    'embed_dim': embed_dim,
-                    'max_length': max_length,
-                    'batch_size': batch_size,
-                    'learning_rate': learning_rate,
-                    'weight_decay': weight_decay,
-                    'use_scheduler': use_scheduler,
-                    'num_parameters': num_params
-                },
-                'history': history
-            }, best_path)
-            print(f'>>> Saved BEST model: Epoch {epoch}, Val AUC: {val_auc:.4f}, Val Acc: {val_acc:.4f}')
         
-        # Save regular checkpoints
-        if epoch % save_every_epochs == 0 or epoch == epochs:
-            checkpoint_path = f'{checkpoint_dir}/checkpoint_epoch_{epoch:03d}.pth'
-            torch.save({
-                'epoch': epoch,
-                'model_state_dict': model.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'scheduler_state_dict': scheduler.state_dict() if scheduler else None,
-                'val_auc': val_auc,
-                'val_acc': val_acc,
-                'val_loss': val_loss,
-                'train_auc': train_auc,
-                'train_acc': train_acc,
-                'train_loss': train_loss,
-                'config': {
-                    'embed_dim': embed_dim,
-                    'max_length': max_length,
-                    'batch_size': batch_size,
-                    'learning_rate': learning_rate,
-                    'weight_decay': weight_decay,
-                    'use_scheduler': use_scheduler,
-                    'num_parameters': num_params
-                },
-                'history': history
-            }, checkpoint_path)
-            print(f'>>> Saved checkpoint: {checkpoint_path}')
-        
-        # Log progress
+        # Log
         epoch_log = {
             'epoch': epoch,
             'train_loss': train_loss,
@@ -705,204 +535,15 @@ def train_model(train_data, val_data, embeddings_dict,
             'train_auc': train_auc,
             'val_auc': val_auc,
             'val_f1': val_f1,
-            'lr': scheduler.get_last_lr()[0] if scheduler else learning_rate,
-            'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            'lr': scheduler.get_last_lr()[0]
         }
         history.append(epoch_log)
         
-        with open(log_path, 'a') as f:
-            f.write(json.dumps(epoch_log) + '\n')
-        
-        print(f'Epoch {epoch:3d}: Train Loss={train_loss:.4f}, Val Loss={val_loss:.4f}, '
-              f'Train Acc={train_acc:.4f}, Val Acc={val_acc:.4f}, Train AUC={train_auc:.4f}, '
-              f'Val AUC={val_auc:.4f}, Val F1={val_f1:.4f}')
-        
-        # Memory cleanup
-        gc.collect()
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
+        if epoch % 5 == 0 or epoch <= 3:
+            print(f'Epoch {epoch:2d}: Train AUC={train_auc:.4f}, Val AUC={val_auc:.4f}, '
+                  f'Val F1={val_f1:.4f}, LR={scheduler.get_last_lr()[0]:.2e}')
     
-    print(f'\n✅ Training completed! Best validation AUC: {best_val_auc:.4f}')
-    print(f'📁 Best model saved to: {best_path}')
-    print(f'📁 Model parameters: {num_params:,}')
-    
-    return history, best_path
+    print(f'Training completed! Best validation AUC: {best_val_auc:.4f}')
+    return history, best_val_auc
 
 
-def evaluate_model(model_path, test_data, embeddings_dict, device='cuda' if torch.cuda.is_available() else 'cpu'):
-    """
-    Evaluate the trained simplified model on test data
-    """
-    # Load model
-    checkpoint = torch.load(model_path, map_location=device)
-    config = checkpoint['config']
-    
-    model = SimplifiedProteinInteractionClassifier(
-        embed_dim=config.get('embed_dim', 128),
-        max_length=config.get('max_length', 512)
-    ).to(device)
-    model.load_state_dict(checkpoint['model_state_dict'])
-    model.eval()
-    
-    # Create test dataset and loader
-    test_dataset = ProteinPairDataset(test_data, embeddings_dict)
-    test_loader = DataLoader(
-        test_dataset, 
-        batch_size=32, 
-        shuffle=False, 
-        collate_fn=collate_fn,
-        num_workers=2
-    )
-    
-    # Evaluation
-    all_preds = []
-    all_probs = []
-    all_labels = []
-    
-    with torch.no_grad():
-        for emb_a, emb_b, lengths_a, lengths_b, interactions in test_loader:
-            emb_a = emb_a.to(device).float()
-            emb_b = emb_b.to(device).float()
-            lengths_a = lengths_a.to(device)
-            lengths_b = lengths_b.to(device)
-            
-            logits = model(emb_a, emb_b, lengths_a, lengths_b)
-            
-            if logits.dim() > 1:
-                logits = logits.squeeze(-1)
-                
-            probs = torch.sigmoid(logits)
-            preds = (probs > 0.5).float()
-            
-            all_preds.extend(preds.cpu().numpy())
-            all_probs.extend(probs.cpu().numpy())
-            all_labels.extend(interactions.numpy())
-    
-    # Calculate metrics
-    accuracy = accuracy_score(all_labels, all_preds)
-    precision = precision_score(all_labels, all_preds)
-    recall = recall_score(all_labels, all_preds)
-    f1 = f1_score(all_labels, all_preds)
-    auc = roc_auc_score(all_labels, all_probs)
-    
-    print(f"\nTest Results (v4.1):")
-    print(f"Accuracy:  {accuracy:.4f}")
-    print(f"Precision: {precision:.4f}")
-    print(f"Recall:    {recall:.4f}")
-    print(f"F1 Score:  {f1:.4f}")
-    print(f"ROC AUC:   {auc:.4f}")
-    
-    return {
-        'accuracy': accuracy,
-        'precision': precision,
-        'recall': recall,
-        'f1': f1,
-        'auc': auc,
-        'predictions': all_preds,
-        'probabilities': all_probs,
-        'labels': all_labels
-    }
-
-
-if __name__ == '__main__':
-    # DEFAULT CONFIGURATION FOR v4.1
-    print("Simplified Protein-Protein Interaction Prediction v4.1")
-    print("=" * 60)
-    print("Key Improvements:")
-    print("✓ Removed complex cross-attention → Simple concatenation")
-    print("✓ Reduced parameters → Target 200-500K range")
-    print("✓ Higher learning rates → 5e-3 default")
-    print("✓ Simplified architecture → Single attention layer")
-    print("✓ Better initialization and stability")
-    print("=" * 60)
-    
-    try:
-        # Load data
-        train_data, cv_data, test1_data, test2_data, protein_embeddings = load_data()
-        
-        print(f"\nData loaded successfully:")
-        print(f"Training data: {len(train_data)} pairs")
-        print(f"Validation data: {len(cv_data)} pairs") 
-        print(f"Test1 data: {len(test1_data)} pairs")
-        print(f"Test2 data: {len(test2_data)} pairs")
-        print(f"Protein embeddings: {len(protein_embeddings)} proteins")
-        
-        # DEFAULT TRAINING CONFIGURATION
-        default_config = {
-            'embed_dim': 128,          # Smaller embedding dimension
-            'max_length': 512,         # Truncate long sequences
-            'epochs': 30,              # Fewer epochs
-            'batch_size': 32,          # Larger batch size for stability
-            'learning_rate': 5e-3,     # Higher learning rate as recommended
-            'weight_decay': 0.01,      # L2 regularization
-            'use_scheduler': True      # OneCycle scheduler
-        }
-        
-        print(f"\nTraining with DEFAULT configuration:")
-        for key, value in default_config.items():
-            print(f"  {key}: {value}")
-        
-        # Train model with default configuration
-        history, model_path = train_model(
-            train_data, cv_data, protein_embeddings,
-            **default_config
-        )
-        
-        # Load best model and get validation AUC
-        checkpoint = torch.load(model_path, map_location='cpu')
-        best_auc = checkpoint['val_auc']
-        num_params = checkpoint['config']['num_parameters']
-        
-        print(f"\n{'='*60}")
-        print(f"TRAINING SUMMARY (v4.1)")
-        print(f"{'='*60}")
-        print(f"Model parameters: {num_params:,}")
-        print(f"Best validation AUC: {best_auc:.4f}")
-        print(f"Model path: {model_path}")
-        
-        # Evaluate on test sets
-        print(f"\nEvaluating on test sets...")
-        
-        try:
-            print(f"\nTest1 Results:")
-            results_test1 = evaluate_model(model_path, test1_data, protein_embeddings)
-        except Exception as e:
-            print(f"Error evaluating on test1: {str(e)}")
-        
-        try:
-            print(f"\nTest2 Results:")
-            results_test2 = evaluate_model(model_path, test2_data, protein_embeddings)
-        except Exception as e:
-            print(f"Error evaluating on test2: {str(e)}")
-        
-        # Save summary
-        summary = {
-            'model_version': 'v4.1',
-            'improvements': [
-                'Removed complex cross-attention',
-                'Reduced parameters to 200-500K range',
-                'Higher learning rates (5e-3)',
-                'Simplified architecture',
-                'Better initialization'
-            ],
-            'default_config': default_config,
-            'results': {
-                'num_parameters': num_params,
-                'best_val_auc': best_auc,
-                'model_path': model_path,
-                'test1_auc': results_test1.get('auc', 0) if 'results_test1' in locals() else 0,
-                'test2_auc': results_test2.get('auc', 0) if 'results_test2' in locals() else 0
-            },
-            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        }
-        
-        summary_path = f'logs/v4_1_summary_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json'
-        with open(summary_path, 'w') as f:
-            json.dump(summary, f, indent=2)
-        
-        print(f"\nSummary saved to: {summary_path}")
-        
-    except Exception as e:
-        print(f"Error in main execution: {str(e)}")
-        import traceback
-        traceback.print_exc() 
