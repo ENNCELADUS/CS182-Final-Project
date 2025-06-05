@@ -257,8 +257,11 @@ class TransformerEnhancedProteinClassifier(nn.Module):
         self.cls_token = nn.Parameter(torch.zeros(1, 1, input_dim))
         self.max_position_embeddings = 2048  # Support longer sequences
         self.register_buffer('pos_encoding',
-                             sinusoid_encoding_table(self.max_position_embeddings, input_dim),
+                             sinusoid_encoding_table(self.max_position_embeddings, hidden_dim),
                              persistent=False)
+        
+        # ② Pre-normalize projected tokens before transformer
+        self.emb_norm = nn.LayerNorm(hidden_dim, eps=1e-5)
         
         # Initial projection to hidden dimension
         self.input_projection = nn.Linear(input_dim, hidden_dim)
@@ -342,28 +345,23 @@ class TransformerEnhancedProteinClassifier(nn.Module):
         emb_a = torch.cat([self.cls_token.expand(B, -1, -1), emb_a], dim=1)  # (B, La+1, 960)
         emb_b = torch.cat([self.cls_token.expand(B, -1, -1), emb_b], dim=1)  # (B, Lb+1, 960)
         
-        # Add positional encoding with bounds checking
-        max_len_a = min(La+1, self.max_position_embeddings)
-        max_len_b = min(Lb+1, self.max_position_embeddings)
-        
-        # Warn if sequences exceed positional encoding length (only during debug)
-        if self.debug_forward and (La+1 > self.max_position_embeddings or Lb+1 > self.max_position_embeddings):
-            print(f"  WARNING: Sequence length exceeds max_position_embeddings ({self.max_position_embeddings})")
-            print(f"    Protein A: {La+1}, Protein B: {Lb+1}")
-        
-        pos_slice_a = self.pos_encoding[:, :max_len_a]  # (1, max_len_a, 960)
-        pos_slice_b = self.pos_encoding[:, :max_len_b]  # (1, max_len_b, 960)
-        
-        # Only add positional encoding to the parts we have encoding for
-        emb_a[:, :max_len_a] = emb_a[:, :max_len_a] + pos_slice_a
-        emb_b[:, :max_len_b] = emb_b[:, :max_len_b] + pos_slice_b
-        
-        # If sequences are longer than max_position_embeddings, the remaining positions
-        # will not have positional encoding (which is still better than crashing)
-        
         # Project to hidden dimension
         emb_a_proj = self.input_projection(emb_a)  # (B, La+1, hidden_dim)
         emb_b_proj = self.input_projection(emb_b)  # (B, Lb+1, hidden_dim)
+        
+        # Add positional encoding after projection (standard practice)
+        seq_len_a = emb_a_proj.size(1)
+        seq_len_b = emb_b_proj.size(1)
+        if self.debug_forward and (seq_len_a > self.max_position_embeddings or seq_len_b > self.max_position_embeddings):
+            print(f"  WARNING: Post-projection sequence length exceeds max_position_embeddings ({self.max_position_embeddings})")
+            print(f"    Protein A: {seq_len_a}, Protein B: {seq_len_b}")
+        pos_slice_proj_a = self.pos_encoding[:, :seq_len_a, :].to(emb_a_proj)
+        pos_slice_proj_b = self.pos_encoding[:, :seq_len_b, :].to(emb_b_proj)
+        emb_a_proj = emb_a_proj + pos_slice_proj_a
+        emb_b_proj = emb_b_proj + pos_slice_proj_b
+        # Normalize token embeddings before feeding to transformer
+        emb_a_proj = self.emb_norm(emb_a_proj)
+        emb_b_proj = self.emb_norm(emb_b_proj)
         
         if self.debug_forward:
             print(f"  DEBUG: emb_a_proj - mean: {emb_a_proj.mean():.4f}, std: {emb_a_proj.std():.4f}, min: {emb_a_proj.min():.4f}, max: {emb_a_proj.max():.4f}")
@@ -525,17 +523,21 @@ def train_model(model, train_loader, val_loader, num_epochs=20, lr=5e-3, device=
     
     model = model.to(device)
     
-    # ③ Use different learning rates for transformer vs other parameters
-    transformer_params = [p for n, p in model.named_parameters() if 'transformer_encoder' in n]
-    other_params = [p for n, p in model.named_parameters() if 'transformer_encoder' not in n]
-    
-    if transformer_params:
-        optimizer = torch.optim.AdamW([
-            {'params': other_params, 'lr': lr},
-            {'params': transformer_params, 'lr': lr}  # Same LR initially
-        ], betas=(0.9, 0.98), weight_decay=0.01)
-    else:
-        optimizer = torch.optim.AdamW(model.parameters(), lr=lr, betas=(0.9, 0.98), weight_decay=0.01)
+    # ③ Learning-rate and weight-decay hygiene: group decay vs no_decay parameters
+    decay = []
+    no_decay = []
+    for name, param in model.named_parameters():
+        if not param.requires_grad:
+            continue
+        # No weight decay for biases or LayerNorm weights
+        if param.ndim == 1 or name.endswith('bias'):
+            no_decay.append(param)
+        else:
+            decay.append(param)
+    optimizer = torch.optim.AdamW([
+        {'params': decay, 'weight_decay': 0.01, 'lr': lr},
+        {'params': no_decay, 'weight_decay': 0.0, 'lr': lr}
+    ], betas=(0.9, 0.98))
 
     scheduler = torch.optim.lr_scheduler.OneCycleLR(
         optimizer, 
