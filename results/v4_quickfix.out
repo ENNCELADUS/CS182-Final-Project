@@ -26,7 +26,7 @@ Examining training data structure:
 DataFrame columns: ['uniprotID_A', 'uniprotID_B', 'isInteraction', 'trainTest',
 'sequence_A', 'sequence_B
 ']
-                         First row sample: {'uniprotID_A': 'O43759', 'uniprotID_
+First row sample: {'uniprotID_A': 'O43759', 'uniprotID_
 B': 'P59991', 'isInteraction': 0, 'trainTest': 'tr
 ain', 'sequence_A': 'MEGGAYGAGKAGGAFDPYTLVRQPHTILRVVSWLFSIVVFGSIVNEGYLNSASEGEEFC
 IYNRNPNACSYGVAVGVLAFLTCLLYLALDVYFPQISSVKDRKKAVLSDIGVSAFWAFLWFVGFCYLANQWQVSKPKDNP
@@ -36,7 +36,7 @@ SFKPAVCLPVSCQSSVCVPMSFKSAVCVPVSCQSSVCVPVSCRPIVCAAPSCQSSLCVPVSCRPVVYAAPSCQSSGCCQP
 SCTSVLCRPISYSISSCC'}
 Loading protein embeddings...
 Loaded 12026 protein embeddings
-       uniprotID_A  ...                                         sequence_B
+       uniprotID_A  ...                sequence_B
 100353      O43759  ...  MCHTSCSSGCQPACCAPSPCQPACCVPSSCQASCCVPVGCQSSVCV...
 118225      P54646  ...  MESPGESGAGSPGAPSPSSFTTGHLAREKPAQDPLYDVPNASGGQA...
 89464       O15344  ...  MAAADAEAVPARGEPQQDCCVKTELLGEETPMAADEGSAEKQAGEA...
@@ -83,7 +83,7 @@ Examining training data structure:
 DataFrame columns: ['uniprotID_A', 'uniprotID_B', 'isInteraction', 'trainTest',
 'sequence_A', 'sequence_B
 ']
-                         First row sample: {'uniprotID_A': 'O43759', 'uniprotID_
+First row sample: {'uniprotID_A': 'O43759', 'uniprotID_
 B': 'P59991', 'isInteraction': 0, 'trainTest': 'tr
 ain', 'sequence_A': 'MEGGAYGAGKAGGAFDPYTLVRQPHTILRVVSWLFSIVVFGSIVNEGYLNSASEGEEFC
 IYNRNPNACSYGVAVGVLAFLTCLLYLALDVYFPQISSVKDRKKAVLSDIGVSAFWAFLWFVGFCYLANQWQVSKPKDNP
@@ -93,7 +93,7 @@ SFKPAVCLPVSCQSSVCVPMSFKSAVCVPVSCQSSVCVPVSCRPIVCAAPSCQSSLCVPVSCRPVVYAAPSCQSSGCCQP
 SCTSVLCRPISYSISSCC'}
 Loading protein embeddings...
 Loaded 12026 protein embeddings
-       uniprotID_A  ...                                         sequence_B
+       uniprotID_A  ...                sequence_B
 100353      O43759  ...  MCHTSCSSGCQPACCAPSPCQPACCVPSSCQASCCVPVGCQSSVCV...
 118225      P54646  ...  MESPGESGAGSPGAPSPSSFTTGHLAREKPAQDPLYDVPNASGGQA...
 89464       O15344  ...  MAAADAEAVPARGEPQQDCCVKTELLGEETPMAADEGSAEKQAGEA...
@@ -114,67 +114,27 @@ Using columns: Protein A = 'uniprotID_A', Protein B = 'uniprotID_B', Interaction
 Dataset: 21333 valid pairs out of 21333 total pairs
 Using device: cuda
 Model parameters: 411,649
-Epoch  1: Train Loss=0.6991, Val Loss=0.6892, Train AUC=0.5000, Val AUC=0.5392,
-Val F1=0.0573, LR=2.60e-0
-3
-                         Epoch  2: Train Loss=0.6722, Val Loss=0.6376, Train AUC
-=0.5953, Val AUC=0.6835, Val F1=0.6437, LR=5.00e-0
-3
-                         Epoch  3: Train Loss=0.6387, Val Loss=0.6241, Train AUC
-=0.6700, Val AUC=0.7051, Val F1=0.7037, LR=4.96e-0
-3
-                         Epoch  4: Train Loss=0.6264, Val Loss=0.6106, Train AUC
-=0.6926, Val AUC=0.7194, Val F1=0.7035, LR=4.85e-0
-3
-                         Epoch  5: Train Loss=0.6185, Val Loss=0.6039, Train AUC
-=0.7038, Val AUC=0.7273, Val F1=0.6978, LR=4.66e-0
-3
-                         Epoch  6: Train Loss=0.6105, Val Loss=0.5969, Train AUC
-=0.7155, Val AUC=0.7349, Val F1=0.7141, LR=4.42e-0
-3
-                         Epoch  7: Train Loss=0.6049, Val Loss=0.5952, Train AUC
-=0.7229, Val AUC=0.7394, Val F1=0.7107, LR=4.11e-0
-3
-                         Epoch  8: Train Loss=0.6000, Val Loss=0.5851, Train AUC
-=0.7294, Val AUC=0.7474, Val F1=0.7155, LR=3.75e-0
-3
-                         Epoch  9: Train Loss=0.5935, Val Loss=0.5805, Train AUC
-=0.7359, Val AUC=0.7530, Val F1=0.7185, LR=3.35e-0
-3
-                         Epoch 10: Train Loss=0.5865, Val Loss=0.5782, Train AUC
-=0.7449, Val AUC=0.7572, Val F1=0.7136, LR=2.93e-0
-3
-                         Epoch 11: Train Loss=0.5830, Val Loss=0.5712, Train AUC
-=0.7486, Val AUC=0.7621, Val F1=0.7202, LR=2.50e-0
-3
-                         Epoch 12: Train Loss=0.5758, Val Loss=0.5680, Train AUC
-=0.7570, Val AUC=0.7652, Val F1=0.7061, LR=2.07e-0
-3
-                         Epoch 13: Train Loss=0.5701, Val Loss=0.5724, Train AUC
-=0.7632, Val AUC=0.7674, Val F1=0.7023, LR=1.64e-0
-3
-                         Epoch 14: Train Loss=0.5632, Val Loss=0.5615, Train AUC
-=0.7713, Val AUC=0.7725, Val F1=0.7150, LR=1.25e-0
-3
-                         Epoch 15: Train Loss=0.5568, Val Loss=0.5588, Train AUC
-=0.7769, Val AUC=0.7759, Val F1=0.7175, LR=8.93e-0
-4
-                         Epoch 16: Train Loss=0.5504, Val Loss=0.5553, Train AUC
-=0.7835, Val AUC=0.7784, Val F1=0.7196, LR=5.85e-0
-4
-                         Epoch 17: Train Loss=0.5439, Val Loss=0.5536, Train AUC
-=0.7895, Val AUC=0.7814, Val F1=0.7313, LR=3.35e-0
-4
-                         Epoch 18: Train Loss=0.5406, Val Loss=0.5520, Train AUC
-=0.7931, Val AUC=0.7825, Val F1=0.7275, LR=1.51e-0
-4
-                         Epoch 19: Train Loss=0.5367, Val Loss=0.5521, Train AUC
-=0.7964, Val AUC=0.7828, Val F1=0.7293, LR=3.80e-0
-5
-                         Epoch 20: Train Loss=0.5365, Val Loss=0.5518, Train AUC
-=0.7967, Val AUC=0.7830, Val F1=0.7292, LR=2.00e-0
-8
-                         
+Epoch  1: Train Loss=0.6991, Val Loss=0.6892, Train AUC=0.5000, Val AUC=0.5392,Val F1=0.0573, LR=2.60e-03
+Epoch  2: Train Loss=0.6722, Val Loss=0.6376, Train AUC=0.5953, Val AUC=0.6835, Val F1=0.6437, LR=5.00e-03
+Epoch  3: Train Loss=0.6387, Val Loss=0.6241, Train AUC=0.6700, Val AUC=0.7051, Val F1=0.7037, LR=4.96e-03
+Epoch  4: Train Loss=0.6264, Val Loss=0.6106, Train AUC=0.6926, Val AUC=0.7194, Val F1=0.7035, LR=4.85e-03
+Epoch  5: Train Loss=0.6185, Val Loss=0.6039, Train AUC=0.7038, Val AUC=0.7273, Val F1=0.6978, LR=4.66e-03
+Epoch  6: Train Loss=0.6105, Val Loss=0.5969, Train AUC=0.7155, Val AUC=0.7349, Val F1=0.7141, LR=4.42e-03
+Epoch  7: Train Loss=0.6049, Val Loss=0.5952, Train AUC=0.7229, Val AUC=0.7394, Val F1=0.7107, LR=4.11e-03
+Epoch  8: Train Loss=0.6000, Val Loss=0.5851, Train AUC=0.7294, Val AUC=0.7474, Val F1=0.7155, LR=3.75e-03
+Epoch  9: Train Loss=0.5935, Val Loss=0.5805, Train AUC=0.7359, Val AUC=0.7530, Val F1=0.7185, LR=3.35e-03
+Epoch 10: Train Loss=0.5865, Val Loss=0.5782, Train AUC=0.7449, Val AUC=0.7572, Val F1=0.7136, LR=2.93e-03
+Epoch 11: Train Loss=0.5830, Val Loss=0.5712, Train AUC=0.7486, Val AUC=0.7621, Val F1=0.7202, LR=2.50e-03
+Epoch 12: Train Loss=0.5758, Val Loss=0.5680, Train AUC=0.7570, Val AUC=0.7652, Val F1=0.7061, LR=2.07e-03
+Epoch 13: Train Loss=0.5701, Val Loss=0.5724, Train AUC=0.7632, Val AUC=0.7674, Val F1=0.7023, LR=1.64e-03
+Epoch 14: Train Loss=0.5632, Val Loss=0.5615, Train AUC=0.7713, Val AUC=0.7725, Val F1=0.7150, LR=1.25e-03
+Epoch 15: Train Loss=0.5568, Val Loss=0.5588, Train AUC=0.7769, Val AUC=0.7759, Val F1=0.7175, LR=8.93e-04
+Epoch 16: Train Loss=0.5504, Val Loss=0.5553, Train AUC=0.7835, Val AUC=0.7784, Val F1=0.7196, LR=5.85e-04
+Epoch 17: Train Loss=0.5439, Val Loss=0.5536, Train AUC=0.7895, Val AUC=0.7814, Val F1=0.7313, LR=3.35e-04
+Epoch 18: Train Loss=0.5406, Val Loss=0.5520, Train AUC=0.7931, Val AUC=0.7825, Val F1=0.7275, LR=1.51e-04
+Epoch 19: Train Loss=0.5367, Val Loss=0.5521, Train AUC=0.7964, Val AUC=0.7828, Val F1=0.7293, LR=3.80e-05
+Epoch 20: Train Loss=0.5365, Val Loss=0.5518, Train AUC=0.7967, Val AUC=0.7830, Val F1=0.7292, LR=2.00e-08
+
 ✅ Training completed! Best validation AUC: 0.7830
 
 🎉 FIXES SUMMARY:

@@ -1,0 +1,217 @@
+(esm) richard@richard-Lenovo-ThinkBook-16p-Gen-4:~/projects/CS182-Final-Project/src/mask_autoencoder$ python debug_v4_architecture.py 
+🔍 V4 ARCHITECTURE DEBUGGING
+============================================================
+Systematic analysis to identify why v4.py fails to learn
+============================================================
+Script directory: /home/richard/projects/CS182-Final-Project/src/mask_autoencoder
+Project root: /home/richard/projects/CS182-Final-Project
+Loading data...
+Looking for data in: /home/richard/projects/CS182-Final-Project/data/full_dataset
+✅ Found: train_data.pkl
+✅ Found: validation_data.pkl
+✅ Found: test1_data.pkl
+✅ Found: test2_data.pkl
+✅ Found: embeddings_standardized.pkl
+
+Examining training data structure:
+DataFrame columns: ['uniprotID_A', 'uniprotID_B', 'isInteraction', 'trainTest', 'sequence_A', 'sequence_B']
+First row sample: {'uniprotID_A': 'O43759', 'uniprotID_B': 'P59991', 'isInteraction': 0, 'trainTest': 'train', 'sequence_A': 'MEGGAYGAGKAGGAFDPYTLVRQPHTILRVVSWLFSIVVFGSIVNEGYLNSASEGEEFCIYNRNPNACSYGVAVGVLAFLTCLLYLALDVYFPQISSVKDRKKAVLSDIGVSAFWAFLWFVGFCYLANQWQVSKPKDNPLNEGTDAARAAIAFSFFSIFTWAGQAVLAFQRYQIGADSALFSQDYMDPSQDSSMPYAPYVEPTGPDPAGMGGTYQQPANTFDTEPQGYQSQGY', 'sequence_B': 'MCHTSCSSGCQPACCAPSPCQPACCVPSSCQASCCVPVGCQSSVCVPVSFKPAVCLPVSCQSSVCVPMSFKSAVCVPVSCQSSVCVPVSCRPIVCAAPSCQSSLCVPVSCRPVVYAAPSCQSSGCCQPSCTSVLCRPISYSISSCC'}
+
+Loading protein embeddings...
+Loaded 12026 protein embeddings
+       uniprotID_A uniprotID_B  isInteraction trainTest                                         sequence_A                                         sequence_B
+100353      O43759      P59991              0     train  MEGGAYGAGKAGGAFDPYTLVRQPHTILRVVSWLFSIVVFGSIVNE...  MCHTSCSSGCQPACCAPSPCQPACCVPSSCQASCCVPVGCQSSVCV...
+118225      P54646      Q13671              0     train  MAEKQKHDGRVKIGHYVLGDTLGVGTFGKVKIGEHQLTGHKVAVKI...  MESPGESGAGSPGAPSPSSFTTGHLAREKPAQDPLYDVPNASGGQA...
+89464       O15344      Q9H9B1              0     train  METLESELTCPICLELFEDPLLLPCAHSLCFNCAHRILVSHCATNE...  MAAADAEAVPARGEPQQDCCVKTELLGEETPMAADEGSAEKQAGEA...
+90759       O14964      Q9NQM4              0     train  MGRGSGTFERLLDKATSQLLLETDWESILQICDLIRQGDTQAKYAV...  MESENMDSENMKTENMESQNVDFESVSSVTALEALSKLLNPEEEDD...
+126347      Q5VYS8      Q9NZL9              0     train  MGDTAKPYFVKRTKDRGTMDDDDFRRGHPQQDYLIIDDHAKGHGSK...  MVGREKELSIHFVPGSCRLVEEEVNIPNRRVLVTGATGLLGRAVHK...
+Protein ID: Q00994, Embedding shape: (113, 960)
+Protein ID: Q8TC90, Embedding shape: (408, 960)
+Protein ID: Q9UJY1, Embedding shape: (198, 960)
+Protein ID: Q9Y6Q6, Embedding shape: (618, 960)
+Protein ID: A4QMS7, Embedding shape: (149, 960)
+Using columns: Protein A = 'uniprotID_A', Protein B = 'uniprotID_B', Interaction = 'isInteraction'
+Dataset: 85329 valid pairs out of 85329 total pairs
+Using device: cuda
+
+Model sizes:
+  V4 model: 11,048,609 parameters
+  Simple model: 164,865 parameters
+
+============================================================
+GRADIENT ANALYSIS WITH ORIGINAL LR SETTINGS
+============================================================
+
+🔬 GRADIENT ANALYSIS: V4 Model (LR=1e-3)
+==================================================
+/home/richard/projects/CS182-Final-Project/src/mask_autoencoder/debug_v4_architecture.py:54: UserWarning: std(): degrees of freedom is <= 0. Correction should be strictly less than the reduction factor (input numel divided by output numel). (Triggered internally at /pytorch/aten/src/ATen/native/ReduceOps.cpp:1839.)
+  grad_std = param.grad.data.std().item()
+Loss: 1.150814
+Output logits range: [-8.236, -4.591]
+Output logits mean: -6.781912
+
+Gradient analysis by component:
+  protein_encoder     : avg_grad_norm=3.25e+00, grad/param_ratio=5.95e+07
+  interaction_layer   : avg_grad_norm=5.03e+00, grad/param_ratio=4.97e+07
+  decoder             : avg_grad_norm=2.52e+00, grad/param_ratio=1.34e+07
+
+🔬 GRADIENT ANALYSIS: Simple Model (LR=5e-3)
+==================================================
+Loss: 0.880138
+Output logits range: [-2.344, 0.301]
+Output logits mean: -1.195756
+
+Gradient analysis by component:
+  protein_encoder     : avg_grad_norm=2.21e+00, grad/param_ratio=1.86e+07
+  interaction_layer   : avg_grad_norm=1.18e+00, grad/param_ratio=1.57e+07
+
+📊 LEARNING RATE SENSITIVITY TEST
+==================================================
+Script directory: /home/richard/projects/CS182-Final-Project/src/mask_autoencoder
+Project root: /home/richard/projects/CS182-Final-Project
+Loading data...
+Looking for data in: /home/richard/projects/CS182-Final-Project/data/full_dataset
+✅ Found: train_data.pkl
+✅ Found: validation_data.pkl
+✅ Found: test1_data.pkl
+✅ Found: test2_data.pkl
+✅ Found: embeddings_standardized.pkl
+
+Examining training data structure:
+DataFrame columns: ['uniprotID_A', 'uniprotID_B', 'isInteraction', 'trainTest', 'sequence_A', 'sequence_B']
+First row sample: {'uniprotID_A': 'O43759', 'uniprotID_B': 'P59991', 'isInteraction': 0, 'trainTest': 'train', 'sequence_A': 'MEGGAYGAGKAGGAFDPYTLVRQPHTILRVVSWLFSIVVFGSIVNEGYLNSASEGEEFCIYNRNPNACSYGVAVGVLAFLTCLLYLALDVYFPQISSVKDRKKAVLSDIGVSAFWAFLWFVGFCYLANQWQVSKPKDNPLNEGTDAARAAIAFSFFSIFTWAGQAVLAFQRYQIGADSALFSQDYMDPSQDSSMPYAPYVEPTGPDPAGMGGTYQQPANTFDTEPQGYQSQGY', 'sequence_B': 'MCHTSCSSGCQPACCAPSPCQPACCVPSSCQASCCVPVGCQSSVCVPVSFKPAVCLPVSCQSSVCVPMSFKSAVCVPVSCQSSVCVPVSCRPIVCAAPSCQSSLCVPVSCRPVVYAAPSCQSSGCCQPSCTSVLCRPISYSISSCC'}
+
+Loading protein embeddings...
+Loaded 12026 protein embeddings
+       uniprotID_A uniprotID_B  isInteraction trainTest                                         sequence_A                                         sequence_B
+100353      O43759      P59991              0     train  MEGGAYGAGKAGGAFDPYTLVRQPHTILRVVSWLFSIVVFGSIVNE...  MCHTSCSSGCQPACCAPSPCQPACCVPSSCQASCCVPVGCQSSVCV...
+118225      P54646      Q13671              0     train  MAEKQKHDGRVKIGHYVLGDTLGVGTFGKVKIGEHQLTGHKVAVKI...  MESPGESGAGSPGAPSPSSFTTGHLAREKPAQDPLYDVPNASGGQA...
+89464       O15344      Q9H9B1              0     train  METLESELTCPICLELFEDPLLLPCAHSLCFNCAHRILVSHCATNE...  MAAADAEAVPARGEPQQDCCVKTELLGEETPMAADEGSAEKQAGEA...
+90759       O14964      Q9NQM4              0     train  MGRGSGTFERLLDKATSQLLLETDWESILQICDLIRQGDTQAKYAV...  MESENMDSENMKTENMESQNVDFESVSSVTALEALSKLLNPEEEDD...
+126347      Q5VYS8      Q9NZL9              0     train  MGDTAKPYFVKRTKDRGTMDDDDFRRGHPQQDYLIIDDHAKGHGSK...  MVGREKELSIHFVPGSCRLVEEEVNIPNRRVLVTGATGLLGRAVHK...
+Protein ID: Q00994, Embedding shape: (113, 960)
+Protein ID: Q8TC90, Embedding shape: (408, 960)
+Protein ID: Q9UJY1, Embedding shape: (198, 960)
+Protein ID: Q9Y6Q6, Embedding shape: (618, 960)
+Protein ID: A4QMS7, Embedding shape: (149, 960)
+Using columns: Protein A = 'uniprotID_A', Protein B = 'uniprotID_B', Interaction = 'isInteraction'
+Dataset: 85329 valid pairs out of 85329 total pairs
+
+📈 Testing LR = 1e-05
+  V4 Model:
+    Large gradients (279.57) at step 0
+    Large gradients (362.96) at step 1
+    Large gradients (151.14) at step 2
+    Large gradients (350.70) at step 3
+    Large gradients (415.32) at step 4
+    Large gradients (209.36) at step 5
+    Large gradients (394.21) at step 6
+    Large gradients (347.19) at step 7
+    Large gradients (192.75) at step 8
+    Large gradients (129.79) at step 9
+  Simple Model:
+    LR 1e-05: V4 loss_change=1.3510, Simple loss_change=0.3604
+
+📈 Testing LR = 0.0001
+  V4 Model:
+    Large gradients (216.78) at step 0
+    Large gradients (321.00) at step 1
+    Large gradients (564.60) at step 2
+    Large gradients (601.35) at step 3
+    Large gradients (315.74) at step 4
+    Large gradients (296.13) at step 5
+    Large gradients (338.17) at step 6
+    Large gradients (879.48) at step 7
+    Large gradients (787.26) at step 8
+    Large gradients (613.30) at step 9
+  Simple Model:
+    LR 0.0001: V4 loss_change=-3.4986, Simple loss_change=-0.0096
+
+📈 Testing LR = 0.001
+  V4 Model:
+    Large gradients (361.17) at step 0
+    Large gradients (1156.15) at step 1
+    Large gradients (1342.37) at step 2
+    Large gradients (641.74) at step 3
+    Large gradients (791.99) at step 4
+    Large gradients (384.14) at step 5
+    Large gradients (536.15) at step 6
+    Large gradients (318.41) at step 7
+    Large gradients (291.83) at step 8
+    Large gradients (212.35) at step 9
+  Simple Model:
+    LR 0.001: V4 loss_change=1.0363, Simple loss_change=0.0251
+
+📈 Testing LR = 0.005
+  V4 Model:
+    Large gradients (199.90) at step 0
+    Large gradients (966.40) at step 1
+    Large gradients (2980.54) at step 2
+    Large gradients (1888.43) at step 3
+    Large gradients (4283.54) at step 4
+    Large gradients (1396.12) at step 5
+    Large gradients (8276.71) at step 6
+    Large gradients (1227.29) at step 7
+    Large gradients (2467.96) at step 8
+    Large gradients (3331.33) at step 9
+  Simple Model:
+    LR 0.005: V4 loss_change=-306.1054, Simple loss_change=-0.3837
+
+📈 Testing LR = 0.01
+  V4 Model:
+    Large gradients (220.48) at step 0
+    Large gradients (1641.94) at step 1
+    Large gradients (3102.61) at step 2
+    Large gradients (5000.55) at step 3
+    Large gradients (9302.16) at step 4
+    Large gradients (5768.50) at step 5
+    Large gradients (5477.25) at step 6
+    Large gradients (5109.25) at step 7
+    Large gradients (7532.05) at step 8
+    Large gradients (4368.64) at step 9
+  Simple Model:
+    LR 0.01: V4 loss_change=-564.7006, Simple loss_change=0.2081
+
+============================================================
+🎯 DIAGNOSTIC SUMMARY
+============================================================
+V4 Model Issues:
+  ❌ Exploding gradients
+
+Gradient Comparison:
+  V4 total gradient norm: 2.33e+02
+  Simple total gradient norm: 2.07e+01
+  Ratio (V4/Simple): 11.27
+
+Output Comparison:
+  V4 logits mean: -6.781912
+  Simple logits mean: -1.195756
+
+Learning Rate Analysis:
+  LR 1e-05: V4=1.3510, Simple=0.3604, Ratio=3.75
+  LR 0.0001: V4=-3.4986, Simple=-0.0096, Ratio=363.17
+  LR 0.001: V4=1.0363, Simple=0.0251, Ratio=41.21
+  LR 0.005: V4=-306.1054, Simple=-0.3837, Ratio=797.87
+  LR 0.01: V4=-564.7006, Simple=0.2081, Ratio=-2713.70
+
+Optimal Learning Rates:
+  V4 model: 1e-05 (loss change: 1.3510)
+  Simple model: 1e-05 (loss change: 0.3604)
+
+💡 LIKELY CAUSES:
+
+🔧 RECOMMENDED FIXES:
+  1. Use higher learning rate: 1e-05 instead of 1e-3
+  2. Simplify architecture - current transformer is too complex
+  3. Check component initialization - some parts may be broken
+  4. Add proper residual connections
+
+⚙️ SUGGESTED V4 CONFIGURATION:
+model = ProteinInteractionClassifier(
+    encoder_layers=1,
+    encoder_embed_dim=64,
+    encoder_heads=2,
+    decoder_hidden_dims=[64, 32]
+)
+optimizer = AdamW(model.parameters(), lr=1e-05, weight_decay=0.01)
+# Add OneCycle scheduler like SimplifiedProteinClassifier
