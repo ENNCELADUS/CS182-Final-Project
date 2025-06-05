@@ -3,12 +3,12 @@
 #SBATCH -p normal
 #SBATCH -N 1
 #SBATCH -t 2-00:00:00
-#SBATCH --mem=128G          # Request 128GB RAM (increased from 64GB)
+#SBATCH --mem=64G          # Request 64GB RAM
 #SBATCH --cpus-per-task=8  # Request 8 CPUs
 #SBATCH --output=%j.out
 #SBATCH --error=%j.err
 #SBATCH --mail-type=ALL
-#SBATCH --gres=gpu:NVIDIAGeForceRTX2080Ti:4  # Request 4 GPUs (increased from 2)
+#SBATCH --gres=gpu:NVIDIAGeForceRTX2080Ti:1  # Request 1 GPUs
 #SBATCH --mail-user=2162352828@qq.com
 # sleep 9999999
 source ~/.bashrc
