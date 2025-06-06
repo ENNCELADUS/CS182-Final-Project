@@ -230,3 +230,122 @@ Run tests regularly to ensure architecture integrity:
 ```bash
 python test_v5_architecture.py
 ```
+
+## Fix components:
+
+## Frozen Components (86,948,352 parameters)
+
+**The entire MAE Encoder (`self.encoder`) is frozen**, which includes:
+
+1. **PatchEmbedding layer** (`self.patch_embed`)
+   - Linear projection from 960 to 768 dimensions
+
+2. **Position embeddings** (`self.pos_embed`)
+   - Learnable positional embeddings for up to 1502 positions
+
+3. **CLS token** (`self.cls_token`)
+   - Learnable classification token
+
+4. **Transformer Encoder** (`self.encoder`)
+   - 12 transformer encoder layers
+   - Each layer has 12 attention heads
+   - Feed-forward dimension of 3072
+   - Layer normalization
+
+5. **Final layer norm** (`self.norm`)
+
+This freezing is controlled by this code in ```250:260:src/mask_autoencoder/v5.py```:
+```python
+# Freeze encoder weights if specified
+if freeze_encoder:
+    for param in self.encoder.parameters():
+        param.requires_grad = False
+```
+
+## Trainable Components (14,638,849 parameters)
+
+Only these components remain trainable:
+
+1. **InteractionCrossAttention** (`self.cross_attn`)
+   - Learnable CLS_int token
+   - 2 cross-attention transformer layers (8 heads each)
+   - Layer normalization
+
+2. **InteractionMLPHead** (`self.mlp_head`)
+   - 3-layer MLP: 768 → 512 → 128 → 1
+   - Layer normalization after each hidden layer
+   - GELU activations and dropout
+
+## Training Strategy
+
+This is a **transfer learning** approach where:
+- The pre-trained MAE encoder (if available) acts as a frozen feature extractor
+- Only the task-specific interaction modeling components are trained
+- This reduces computational cost and prevents overfitting on the downstream PPI classification task
+- The configuration shows `'freeze_encoder': True` by default in the training script
+
+The parameter counts (86.9M frozen, 14.6M trainable) demonstrate that the majority of the model's capacity comes from the frozen pre-trained encoder, while only the interaction-specific components are being optimized during training.
+
+## Current Status: **No Pretrained MAE Available** ❌
+
+The pretrained MAE encoder is **currently NOT available**. Here's what I found:
+
+### 1. Configuration Shows MAE Path is None
+
+In the training configuration (```648:src/mask_autoencoder/v5_train_eval.py```):
+```python
+'mae_checkpoint_path': None,  # Set path to pre-trained MAE if available
+```
+
+And the output shows:
+```
+mae_checkpoint_path: None
+```
+
+### 2. Available MAE Checkpoints Are Different Architecture
+
+I found one MAE checkpoint in the experiments:
+- **File**: `experiments/v3/mae_pairs_best_20250530-151013.pth`
+- **Issue**: This is from MAE **v3**, which has different architecture parameters:
+  - v3 MAE: `embed_dim=256, num_layers=2, nhead=8`
+  - v5 MAE: `embed_dim=768, num_layers=12, nhead=12`
+
+### 3. Architecture Incompatibility
+
+The v3 MAE checkpoint cannot be directly used with v5 because:
+- Different embedding dimensions (256 vs 768)
+- Different number of layers (2 vs 12)
+- Different number of attention heads (8 vs 12)
+
+## What This Means for Training
+
+Currently, the v5 model is training **WITHOUT pretrained weights**:
+
+1. **MAE Encoder starts from random initialization**
+2. **All MAE parameters are frozen** (86.9M parameters)
+3. **Only task-specific components are trained** (14.6M parameters)
+
+This is essentially **feature extraction** rather than **transfer learning**, since the frozen encoder has random weights.
+
+## Solutions to Get Pretrained MAE
+
+### Option 1: Train MAE v5 First
+You would need to train a new MAE with v5 architecture (768-dim, 12 layers) on protein data.
+
+### Option 2: Use v3 MAE with Architecture Adaptation
+Modify v5 to use v3's architecture parameters, though this would reduce model capacity.
+
+### Option 3: Continue Without Pretrained MAE
+The current approach might still work as the cross-attention and MLP head learn to work with the frozen random encoder features.
+
+## To Use an Actual Pretrained MAE
+
+If you had a compatible pretrained MAE checkpoint, you would set:
+```python
+config = {
+    'mae_checkpoint_path': 'path/to/mae_v5_pretrained.pth',
+    'freeze_encoder': True,  # or False for fine-tuning
+}
+```
+
+The current training is proceeding without pretrained weights, which may limit the model's performance compared to using a properly pretrained MAE encoder.
