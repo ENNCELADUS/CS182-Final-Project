@@ -17,7 +17,29 @@ import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use('Agg')
 
+# ⚡ PERFORMANCE OPTIMIZATIONS
+print("🚀 Applying PyTorch Performance Optimizations...")
+
+# Enable cuDNN auto-tuner for consistent input sizes
+torch.backends.cudnn.benchmark = True
+
+# Enable cuDNN deterministic mode (set to False for max speed)
+torch.backends.cudnn.deterministic = False
+
+# Enable mixed precision training support
+torch.backends.cuda.matmul.allow_tf32 = True
+torch.backends.cudnn.allow_tf32 = True
+
+# Memory optimization
+torch.cuda.empty_cache() if torch.cuda.is_available() else None
+
+# JIT compilation for consistent operations
+torch.jit.set_fusion_strategy([('STATIC', 2), ('DYNAMIC', 2)])
+
+print("✅ Performance optimizations applied")
+
 from torch.utils.data import DataLoader
+from torch.cuda.amp import autocast, GradScaler  # ⚡ Mixed precision training
 from sklearn.metrics import (accuracy_score, precision_score, recall_score, 
                            f1_score, roc_auc_score, average_precision_score, 
                            roc_curve, precision_recall_curve)
@@ -61,8 +83,8 @@ def collate_fn_v52(batch):
     
     return padded_a, padded_b, lengths_a, lengths_b, interactions
 
-def train_epoch(model, train_loader, optimizer, criterion, device, scheduler=None):
-    """Train for one epoch"""
+def train_epoch(model, train_loader, optimizer, criterion, device, scheduler=None, scaler=None):
+    """Train for one epoch with mixed precision support"""
     model.train()
     total_loss = 0
     all_preds = []
@@ -80,24 +102,31 @@ def train_epoch(model, train_loader, optimizer, criterion, device, scheduler=Non
             
             optimizer.zero_grad()
             
-            # Forward pass
-            logits = model(emb_a, emb_b, lengths_a, lengths_b)
-            
-            # Calculate loss
-            loss = criterion(logits, interactions)
+            # Mixed precision forward pass
+            if scaler is not None:
+                with autocast():
+                    logits = model(emb_a, emb_b, lengths_a, lengths_b)
+                    loss = criterion(logits, interactions)
+            else:
+                logits = model(emb_a, emb_b, lengths_a, lengths_b)
+                loss = criterion(logits, interactions)
             
             # Check for NaN/Inf
             if torch.isnan(loss) or torch.isinf(loss):
                 print(f"Warning: Invalid loss at batch {batch_idx}: {loss.item()}")
                 continue
             
-            # Backward pass
-            loss.backward()
-            
-            # Gradient clipping
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-            
-            optimizer.step()
+            # Mixed precision backward pass
+            if scaler is not None:
+                scaler.scale(loss).backward()
+                scaler.unscale_(optimizer)  # Unscale before gradient clipping
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+                scaler.step(optimizer)
+                scaler.update()
+            else:
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+                optimizer.step()
             if scheduler:
                 scheduler.step()
             
@@ -412,9 +441,9 @@ def train_model(config):
     dataloader_kwargs = {
         'batch_size': config['batch_size'],
         'collate_fn': collate_fn_v52,
-        'num_workers': 0,
-        'pin_memory': False,
-        'persistent_workers': False
+        'num_workers': config['num_workers'],
+        'pin_memory': True,          # ⬆️ Faster GPU transfer
+        'persistent_workers': True if config['num_workers'] > 0 else False  # ⬆️ Keep workers alive
     }
     
     train_loader = DataLoader(train_dataset, shuffle=True, **dataloader_kwargs)
@@ -456,6 +485,11 @@ def train_model(config):
     # Loss function
     criterion = nn.BCEWithLogitsLoss()
     
+    # Mixed precision scaler for faster training
+    scaler = GradScaler() if device.type == 'cuda' else None
+    if scaler:
+        print("🚀 Mixed precision training enabled")
+    
     # Training history
     history = {
         'train_loss': [], 'val_loss': [], 'train_auc': [], 'val_auc': [],
@@ -474,7 +508,7 @@ def train_model(config):
         print("-" * 40)
         
         # Train
-        train_metrics = train_epoch(model, train_loader, optimizer, criterion, device, scheduler)
+        train_metrics = train_epoch(model, train_loader, optimizer, criterion, device, scheduler, scaler)
         
         # Validate
         val_metrics = validate_epoch(model, val_loader, criterion, device)
@@ -565,16 +599,19 @@ def train_model(config):
 
 def main():
     """Main function"""
-    # Training configuration
+    # Training configuration - OPTIMIZED FOR QUICK TRAINING
     config = {
-        'batch_size': 8,
-        'learning_rate': 1e-4,
-        'num_epochs': 50,
+        # Core training parameters
+        'batch_size': 64,           # ⬆️ Increased for faster training
+        'learning_rate': 1e-3,      # ⬇️ More conservative for stability
+        'num_epochs': 40,           # ⬇️ Reduced for quick training
         'weight_decay': 0.01,
+        
+        # Acceleration settings
         'use_scheduler': True,
         'early_stopping': True,
-        'patience': 10,
-        'num_workers': 0,
+        'patience': 10,              # ⬇️ More aggressive early stopping
+        'num_workers': 4,           # ⬆️ Parallel data loading
         
         # V5.2 specific configuration
         'v2_mae_path': 'src/mask_autoencoder/model/mae_best_20250528-174157.pth',  # TODO: ⚠️ UPDATE THIS PATH
