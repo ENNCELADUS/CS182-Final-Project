@@ -9,7 +9,7 @@ import numpy as np
 from v5 import create_ppi_classifier, PPIClassifier
 from v4_1 import load_data, ProteinPairDataset
 from torch.utils.data import DataLoader
-from v5_train_eval import collate_fn_v5, count_parameters
+from mask_autoencoder.v5_train import collate_fn_v5, count_parameters
 
 def test_model_creation():
     """Test model creation and parameter counting"""

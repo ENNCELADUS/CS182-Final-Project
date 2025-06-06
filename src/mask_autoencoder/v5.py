@@ -223,7 +223,7 @@ class PPIClassifier(nn.Module):
     def load_mae_weights(self, checkpoint_path: str):
         """Load pre-trained MAE weights"""
         try:
-            checkpoint = torch.load(checkpoint_path, map_location='cpu')
+            checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=False)
             if 'model_state_dict' in checkpoint:
                 state_dict = checkpoint['model_state_dict']
             else:

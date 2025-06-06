@@ -305,7 +305,7 @@ def save_checkpoint(model, optimizer, scheduler, epoch, train_metrics, val_metri
 
 def load_checkpoint(checkpoint_path, model, optimizer=None, scheduler=None):
     """Load model checkpoint"""
-    checkpoint = torch.load(checkpoint_path, map_location='cpu')
+    checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=False)
     
     model.load_state_dict(checkpoint['model_state_dict'])
     
@@ -649,6 +649,8 @@ def main():
         'mae_checkpoint_path': None,  # Set path to pre-trained MAE if available
         'freeze_encoder': True,  # Freeze MAE encoder weights
         'use_lora': False,  # Use LoRA for efficient fine-tuning
+        
+        # Removed eval_only configuration - this is now a training-only script
         
         # Paths
         'save_dir': 'models/v5_training',
