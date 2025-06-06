@@ -22,7 +22,7 @@ from sklearn.metrics import (accuracy_score, precision_score, recall_score,
                            roc_curve, precision_recall_curve)
 
 # Import necessary components
-from v4_1 import load_data, ProteinPairDataset
+from v4.v4_1 import load_data, ProteinPairDataset
 from v5 import PPIClassifier, create_ppi_classifier
 
 def collate_fn_v5(batch):

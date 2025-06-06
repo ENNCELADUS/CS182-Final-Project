@@ -24,7 +24,7 @@ from sklearn.metrics import (accuracy_score, precision_score, recall_score,
                            roc_curve, precision_recall_curve)
 
 # Import data loading functions from v4_1
-from v4_1 import load_data, ProteinPairDataset, detect_column_names
+from v4.v4_1 import load_data, ProteinPairDataset, detect_column_names
 
 # Import the v5 model
 from v5 import PPIClassifier, create_ppi_classifier
