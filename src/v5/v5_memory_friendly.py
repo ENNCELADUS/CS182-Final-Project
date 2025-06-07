@@ -314,7 +314,7 @@ class PPIClassifier(nn.Module):
         return z_int
 
 # Factory function for easy model creation
-def create_ppi_classifier(mae_checkpoint_path: Optional[str] = None, 
+def create_ppi_classifier(mae_checkpoint_path: str = "models/v5_compatible_mae_best_20250607-012709.pth", 
                          freeze_encoder: bool = True,
                          use_lora: bool = False) -> PPIClassifier:
     """
