@@ -15,6 +15,12 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 from sklearn.model_selection import train_test_split
 import pickle
 
+# Import data loading functions from v4_1 (same as v5_2_train.py)
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'v4'))
+from v4_1 import load_data, ProteinPairDataset
+
 from v5_memory_friendly import create_ppi_classifier
 
 class PPIDataset(Dataset):
@@ -191,8 +197,6 @@ def evaluate_model(model, dataloader, device):
     return metrics
 
 def train_ppi_classifier(mae_checkpoint_path, 
-                        ppi_data_path=None,
-                        protein_embeddings_path=None,
                         epochs=20,
                         batch_size=8,
                         learning_rate=1e-4):
@@ -204,49 +208,59 @@ def train_ppi_classifier(mae_checkpoint_path,
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
     
-    # Load protein embeddings
-    if protein_embeddings_path and os.path.exists(protein_embeddings_path):
-        print(f"Loading protein embeddings from {protein_embeddings_path}")
-        protein_embeddings = pd.read_pickle(protein_embeddings_path)
-    else:
-        print("Creating dummy protein embeddings for testing...")
-        # Get protein IDs from PPI data or create dummy ones
-        if ppi_data_path and os.path.exists(ppi_data_path):
-            ppi_data = load_ppi_data(ppi_data_path)
-            protein_ids = set()
-            for prot_a, prot_b, _ in ppi_data:
-                protein_ids.add(prot_a)
-                protein_ids.add(prot_b)
-            protein_ids = list(protein_ids)
-        else:
-            protein_ids = [f"protein_{i}" for i in range(100)]
+    # Load data using the same function as v5_2_train.py
+    print("\n📊 Loading data...")
+    train_data, val_data, test1_data, test2_data, protein_embeddings = load_data()
+    
+    # Create datasets using the same classes as v5_2_train.py
+    train_dataset = ProteinPairDataset(train_data, protein_embeddings)
+    val_dataset = ProteinPairDataset(val_data, protein_embeddings)
+    test1_dataset = ProteinPairDataset(test1_data, protein_embeddings)
+    test2_dataset = ProteinPairDataset(test2_data, protein_embeddings)
+    
+    print(f"Train samples: {len(train_dataset)}")
+    print(f"Validation samples: {len(val_dataset)}")
+    print(f"Test1 samples: {len(test1_dataset)}")
+    print(f"Test2 samples: {len(test2_dataset)}")
+    
+    # Create collate function compatible with v5_memory_friendly (no lengths needed)
+    def collate_fn_v5_compatible(batch):
+        """Collate function compatible with v5_memory_friendly model"""
+        embs_a = [item['emb_a'] for item in batch]
+        embs_b = [item['emb_b'] for item in batch]
+        interactions = torch.tensor([item['interaction'] for item in batch], dtype=torch.float32)
         
-        protein_embeddings = create_dummy_embeddings(protein_ids)
+        # Pad sequences to same length within batch
+        max_len_a = max(emb.shape[0] for emb in embs_a)
+        max_len_b = max(emb.shape[0] for emb in embs_b)
+        
+        # Create padded tensors
+        batch_size = len(batch)
+        padded_a = torch.zeros(batch_size, max_len_a, 960, dtype=torch.float32)
+        padded_b = torch.zeros(batch_size, max_len_b, 960, dtype=torch.float32)
+        
+        for i, (emb_a, emb_b) in enumerate(zip(embs_a, embs_b)):
+            len_a, len_b = emb_a.shape[0], emb_b.shape[0]
+            emb_a = emb_a.float() if emb_a.dtype != torch.float32 else emb_a
+            emb_b = emb_b.float() if emb_b.dtype != torch.float32 else emb_b
+            padded_a[i, :len_a] = emb_a
+            padded_b[i, :len_b] = emb_b
+        
+        return {
+            "emb_a": padded_a,
+            "emb_b": padded_b,
+            "labels": interactions
+        }
     
-    # Load PPI data
-    if ppi_data_path and os.path.exists(ppi_data_path):
-        ppi_data = load_ppi_data(ppi_data_path)
-    else:
-        ppi_data = create_dummy_ppi_data()
-    
-    # Split data
-    train_data, test_data = train_test_split(ppi_data, test_size=0.2, random_state=42)
-    train_data, val_data = train_test_split(train_data, test_size=0.2, random_state=42)
-    
-    print(f"Train: {len(train_data)}, Val: {len(val_data)}, Test: {len(test_data)}")
-    
-    # Create datasets
-    train_dataset = PPIDataset(train_data, protein_embeddings)
-    val_dataset = PPIDataset(val_data, protein_embeddings)
-    test_dataset = PPIDataset(test_data, protein_embeddings)
-    
-    # Create dataloaders
+    # Create dataloaders using the same data as v5_2_train.py
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, 
-                            num_workers=1, collate_fn=collate_fn)
+                            num_workers=1, collate_fn=collate_fn_v5_compatible)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False,
-                          num_workers=1, collate_fn=collate_fn)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False,
-                           num_workers=1, collate_fn=collate_fn)
+                          num_workers=1, collate_fn=collate_fn_v5_compatible)
+    test1_loader = DataLoader(test1_dataset, batch_size=batch_size, shuffle=False,
+                           num_workers=1, collate_fn=collate_fn_v5_compatible)
+    test2_loader = DataLoader(test2_dataset, batch_size=batch_size, shuffle=False,
+                           num_workers=1, collate_fn=collate_fn_v5_compatible)
     
     # Create model with pre-trained MAE
     model = create_ppi_classifier(
@@ -277,7 +291,8 @@ def train_ppi_classifier(mae_checkpoint_path,
     log_path = f'logs/ppi_train_{ts}.json'
     best_path = f'models/ppi_best_{ts}.pth'
     
-    best_val_f1 = 0.0
+    best_val_auc = 0.0
+    best_epoch = 0
     history = []
     
     # Training loop
@@ -315,18 +330,20 @@ def train_ppi_classifier(mae_checkpoint_path,
         print(f'Epoch {epoch} - Train Loss: {train_loss:.4f}, Val Loss: {val_metrics["loss"]:.4f}')
         print(f'Val Metrics - Acc: {val_metrics["accuracy"]:.4f}, F1: {val_metrics["f1"]:.4f}, AUC: {val_metrics["auc"]:.4f}')
         
-        # Save best model
-        if val_metrics["f1"] > best_val_f1:
-            best_val_f1 = val_metrics["f1"]
+        # Save best model based on AUC
+        is_best = val_metrics["auc"] > best_val_auc
+        if is_best:
+            best_val_auc = val_metrics["auc"]
+            best_epoch = epoch
             torch.save({
                 'epoch': epoch,
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'scheduler_state_dict': scheduler.state_dict(),
-                'val_f1': best_val_f1,
+                'val_auc': best_val_auc,
                 'val_metrics': val_metrics
             }, best_path)
-            print(f'>>> New best model saved! Val F1: {best_val_f1:.4f}')
+            print(f'>>> New best model saved! Val AUC: {best_val_auc:.4f}')
         
         # Log results
         log_entry = {
@@ -346,24 +363,33 @@ def train_ppi_classifier(mae_checkpoint_path,
         gc.collect()
         torch.cuda.empty_cache()
     
-    # Final evaluation on test set
+    # Final evaluation on test sets
     print("\n" + "="*50)
-    print("FINAL EVALUATION ON TEST SET")
+    print("FINAL EVALUATION ON TEST SETS")
     print("="*50)
     
     # Load best model
     checkpoint = torch.load(best_path)
     model.load_state_dict(checkpoint['model_state_dict'])
     
-    test_metrics = evaluate_model(model, test_loader, device)
-    print(f"Test Metrics:")
-    for metric, value in test_metrics.items():
+    # Evaluate on both test sets
+    test1_metrics = evaluate_model(model, test1_loader, device)
+    test2_metrics = evaluate_model(model, test2_loader, device)
+    
+    print(f"Test1 Metrics:")
+    for metric, value in test1_metrics.items():
+        print(f"  {metric}: {value:.4f}")
+    
+    print(f"\nTest2 Metrics:")
+    for metric, value in test2_metrics.items():
         print(f"  {metric}: {value:.4f}")
     
     # Save final results
     final_results = {
-        'best_val_f1': best_val_f1,
-        'test_metrics': test_metrics,
+        'best_val_auc': best_val_auc,
+        'best_epoch': best_epoch,
+        'test1_metrics': test1_metrics,
+        'test2_metrics': test2_metrics,
         'training_history': history
     }
     
@@ -409,37 +435,29 @@ def train_ppi_classifier(mae_checkpoint_path,
     plt.close()
     
     print(f"\nTraining completed! Best model saved to: {best_path}")
+    print(f"Best validation AUC: {best_val_auc:.4f} (epoch {best_epoch})")
     print(f"Results saved to: logs/ppi_final_results_{ts}.json")
     
     return model, history
 
 if __name__ == "__main__":
-    # Configuration
-    MAE_CHECKPOINT_PATH = "models/v5_mae_best_*.pth"  # Update this path
-    PPI_DATA_PATH = None  # Update with your PPI data path
-    PROTEIN_EMBEDDINGS_PATH = "data/full_dataset/embeddings/embeddings_standardized.pkl"
+    # Configuration - using the compatible v5 MAE model
+    MAE_CHECKPOINT_PATH = "models/v5_compatible_mae_best_20250607-012709.pth"  # Compatible v5 MAE
     
-    # Find the latest MAE checkpoint if using wildcard
-    if "*" in MAE_CHECKPOINT_PATH:
-        import glob
-        mae_files = glob.glob(MAE_CHECKPOINT_PATH)
-        if mae_files:
-            MAE_CHECKPOINT_PATH = sorted(mae_files)[-1]  # Get the latest one
-            print(f"Using MAE checkpoint: {MAE_CHECKPOINT_PATH}")
-        else:
-            print("No MAE checkpoint found! Please train the MAE first.")
-            print("Run: python src/v5/v5_mae_train.py")
-            exit(1)
+    # Check if MAE checkpoint exists
+    if not os.path.exists(MAE_CHECKPOINT_PATH):
+        print(f"❌ Error: Compatible MAE checkpoint not found: {MAE_CHECKPOINT_PATH}")
+        print("Please train the compatible MAE first:")
+        print("Run: python src/v5/v5_mae_compatible_train.py")
+        exit(1)
     
     # Start training
-    print("Starting PPI Classifier Training...")
-    print(f"MAE checkpoint: {MAE_CHECKPOINT_PATH}")
-    print(f"Protein embeddings: {PROTEIN_EMBEDDINGS_PATH}")
+    print("🧬 Starting PPI Classifier Training with v5_memory_friendly...")
+    print(f"📁 MAE checkpoint: {MAE_CHECKPOINT_PATH}")
+    print("📊 Using same data loading as v5_2_train.py")
     
     model, history = train_ppi_classifier(
         mae_checkpoint_path=MAE_CHECKPOINT_PATH,
-        ppi_data_path=PPI_DATA_PATH,
-        protein_embeddings_path=PROTEIN_EMBEDDINGS_PATH,
         epochs=30,
         batch_size=8,
         learning_rate=1e-4
