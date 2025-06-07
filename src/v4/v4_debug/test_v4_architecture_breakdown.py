@@ -9,7 +9,7 @@ import torch.nn as nn
 from v4 import (ProteinInteractionClassifier, RoPEPositionalEncoding, 
                 EnhancedTransformerLayer, CrossAttentionInteraction, 
                 EnhancedMLPDecoder, ProteinEncoder)
-from quick_fix_v4 import SimplifiedProteinClassifier
+from v4.DNN_v4 import SimplifiedProteinClassifier
 
 class MinimalTransformerLayer(nn.Module):
     """Minimal transformer - just self-attention + FFN, no RoPE"""

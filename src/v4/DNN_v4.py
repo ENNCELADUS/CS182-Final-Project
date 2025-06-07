@@ -87,10 +87,6 @@ class SimplifiedProteinClassifier(nn.Module):
         return logits
 
 def test_simple_model():
-    """Test the simplified model to verify it can learn"""
-    print("🧪 TESTING SIMPLIFIED MODEL")
-    print("=" * 50)
-    
     # Load data
     train_data, val_data, _, _, protein_embeddings = load_data()
     
@@ -141,14 +137,9 @@ def test_simple_model():
             acc = (preds == interactions).float().mean()
             print(f"  Step {i}: Loss={loss.item():.4f}, Acc={acc.item():.4f}")
     
-    print("✅ Simple model test completed!")
     return model
 
 def train_fixed_model():
-    """Train model with fixes applied"""
-    print("\n🔧 TRAINING WITH FIXES APPLIED")
-    print("=" * 50)
-    
     # Load data
     train_data, val_data, _, _, protein_embeddings = load_data()
     
@@ -282,7 +273,7 @@ def train_fixed_model():
                 'model_state_dict': model.state_dict(),
                 'val_auc': val_auc,
                 'epoch': epoch
-            }, 'models/fixed_model_best.pth')
+            }, 'models/DNN_v4.pth')
         
         # Log
         epoch_log = {
@@ -302,19 +293,10 @@ def train_fixed_model():
               f'Train AUC={train_auc:.4f}, Val AUC={val_auc:.4f}, Val F1={val_f1:.4f}, '
               f'LR={scheduler.get_last_lr()[0]:.2e}')
     
-    print(f'\n✅ Training completed! Best validation AUC: {best_val_auc:.4f}')
+    print(f'\n Training completed! Best validation AUC: {best_val_auc:.4f}')
     return history, best_val_auc
 
 def main():
-    """Run the quick fix tests and training"""
-    print("🚀 QUICK FIX FOR PROTEIN INTERACTION MODEL")
-    print("=" * 60)
-    print("Based on diagnostic results:")
-    print("- Class balance is perfect ✅")
-    print("- Embeddings are high quality ✅") 
-    print("- Model was too complex and LR too low ❌")
-    print("=" * 60)
-    
     # Ensure directories exist
     os.makedirs('models', exist_ok=True)
     os.makedirs('logs', exist_ok=True)
@@ -330,27 +312,7 @@ def main():
         json.dump({
             'best_val_auc': best_auc,
             'history': history,
-            'fixes_applied': [
-                'Higher learning rate (5e-3 vs 1e-4)',
-                'Simplified model architecture',
-                'OneCycle learning rate scheduler',
-                'Proper weight initialization',
-                'Gradient clipping'
-            ]
         }, f, indent=2)
-    
-    print(f"\n🎉 FIXES SUMMARY:")
-    print(f"1. Increased learning rate: 1e-4 → 5e-3 (50x higher)")
-    print(f"2. Simplified model architecture for better learning")
-    print(f"3. Added OneCycle LR scheduler for better convergence")
-    print(f"4. Added proper weight initialization")
-    print(f"5. Added gradient clipping for stability")
-    print(f"\nBest validation AUC: {best_auc:.4f}")
-    
-    if best_auc > 0.6:
-        print("✅ SUCCESS: Model is now learning! (AUC > 0.6)")
-    else:
-        print("⚠️  Model still struggling - may need further investigation")
 
 if __name__ == "__main__":
     main()

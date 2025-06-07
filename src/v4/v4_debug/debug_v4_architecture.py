@@ -17,7 +17,7 @@ from v4 import (load_data, ProteinPairDataset, collate_fn,
                 RoPEPositionalEncoding, EnhancedTransformerLayer, 
                 ProteinEncoder, CrossAttentionInteraction, 
                 EnhancedMLPDecoder, ProteinInteractionClassifier)
-from quick_fix_v4 import SimplifiedProteinClassifier
+from v4.DNN_v4 import SimplifiedProteinClassifier
 
 def test_gradient_magnitudes(model, data_loader, device, model_name):
     """Test gradient magnitudes across the model"""
