@@ -1,21 +1,22 @@
 # Fdb version 4
-["bibtex cs182_plusExperiments"] 1749308249.50945 "cs182_plusExperiments.aux" "cs182_plusExperiments.bbl" "cs182_plusExperiments" 1749308249.8832 0
+["bibtex cs182_plusExperiments"] 1749361080.51896 "cs182_plusExperiments.aux" "cs182_plusExperiments.bbl" "cs182_plusExperiments" 1749361080.88301 0
   "./references.bib" 1749305844.03083 3310 0cc8e987fa6b9bc290ab1f9125e858d1 ""
   "/usr/share/texlive/texmf-dist/bibtex/bst/base/plain.bst" 1292289607 20613 bd3fbfa9f64872b81ac57a0dd2ed855f ""
-  "cs182_plusExperiments.aux" 1749308249.83194 3576 c5986b8f6edd9aaaee157069e40d2785 "pdflatex"
+  "cs182_plusExperiments.aux" 1749361080.83538 3576 fefce279d259220a8ea232346794995c "pdflatex"
   (generated)
   "cs182_plusExperiments.bbl"
   "cs182_plusExperiments.blg"
   (rewritten before read)
-["pdflatex"] 1749308249.52441 "/home/richard/projects/CS182-Final-Project/docs/report/final_report/cs182_plusExperiments.tex" "cs182_plusExperiments.pdf" "cs182_plusExperiments" 1749308249.88345 0
+["pdflatex"] 1749361080.53291 "/home/richard/projects/CS182-Final-Project/docs/report/final_report/cs182_plusExperiments.tex" "cs182_plusExperiments.pdf" "cs182_plusExperiments" 1749361080.88312 0
   "/etc/texmf/web2c/texmf.cnf" 1746442589.40512 475 c0e671620eb5563b2130f56340a5fde8 ""
   "/home/richard/.texlive2023/texmf-var/fonts/pk/ljfour/jknappen/ec/ectt1000.600pk" 1749199471.78038 20008 5845807cc30cf5927534cd0a174240c4 ""
   "/home/richard/.texlive2023/texmf-var/fonts/pk/ljfour/jknappen/ec/tcrm1000.600pk" 1749296959.0408 11524 8ef3948f635827316407d42c50a08643 ""
-  "/home/richard/projects/CS182-Final-Project/docs/report/final_report/cs182_plusExperiments.tex" 1749308248.99895 16604 8f5d200d0a96362ec6a4fce092e6311a ""
+  "/home/richard/projects/CS182-Final-Project/docs/report/final_report/cs182_plusExperiments.tex" 1749361080.02235 15761 cc539e1c2b4eceac9b65d2af61e95a79 ""
   "/usr/share/texlive/texmf-dist/fonts/enc/dvips/base/8r.enc" 1165713224 4850 80dc9bab7f31fb78a000ccfed0e27cab ""
   "/usr/share/texlive/texmf-dist/fonts/map/fontname/texfonts.map" 1577235249 3524 cb3e574dea2d1052e39280babc910dc8 ""
   "/usr/share/texlive/texmf-dist/fonts/tfm/adobe/times/ptmb8r.tfm" 1136768653 4524 6bce29db5bc272ba5f332261583fee9c ""
   "/usr/share/texlive/texmf-dist/fonts/tfm/adobe/times/ptmb8t.tfm" 1136768653 6880 f19b8995b61c334d78fc734065f6b4d4 ""
+  "/usr/share/texlive/texmf-dist/fonts/tfm/adobe/times/ptmr8c.tfm" 1136768653 1352 fa28a7e6d323c65ce7d13d5342ff6be2 ""
   "/usr/share/texlive/texmf-dist/fonts/tfm/adobe/times/ptmr8r.tfm" 1136768653 4408 25b74d011a4c66b7f212c0cc3c90061b ""
   "/usr/share/texlive/texmf-dist/fonts/tfm/adobe/times/ptmr8t.tfm" 1136768653 6672 e3ab9e37e925f3045c9005e6d1473d56 ""
   "/usr/share/texlive/texmf-dist/fonts/tfm/adobe/times/ptmri8r.tfm" 1136768653 4640 532ca3305aad10cc01d769f3f91f1029 ""
@@ -41,12 +42,12 @@
   "/usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb" 1248133631 35752 024fb6c41858982481f6968b5fc26508 ""
   "/usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr5.pfb" 1248133631 31809 8670ca339bf94e56da1fc21c80635e2a ""
   "/usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb" 1248133631 32569 5e5ddc8df908dea60932f3c484a54c0d ""
-  "/usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy7.pfb" 1248133631 32716 08e384dc442464e7285e891af9f45947 ""
   "/usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cmextra/cmex7.pfb" 1248133631 30457 bc0868ebece724ed7c3d37e3d9bff7bd ""
   "/usr/share/texlive/texmf-dist/fonts/type1/urw/times/utmb8a.pfb" 1136849748 44729 811d6c62865936705a31c797a1d5dada ""
   "/usr/share/texlive/texmf-dist/fonts/type1/urw/times/utmr8a.pfb" 1136849748 46026 6dab18b61c907687b520c72847215a68 ""
   "/usr/share/texlive/texmf-dist/fonts/type1/urw/times/utmri8a.pfb" 1136849748 45458 a3faba884469519614ca56ba5f6b1de1 ""
   "/usr/share/texlive/texmf-dist/fonts/vf/adobe/times/ptmb8t.vf" 1136768653 2340 df9c920cc5688ebbf16a93f45ce7bdd3 ""
+  "/usr/share/texlive/texmf-dist/fonts/vf/adobe/times/ptmr8c.vf" 1136768653 3556 8a9a6dcbcd146ef985683f677f4758a6 ""
   "/usr/share/texlive/texmf-dist/fonts/vf/adobe/times/ptmr8t.vf" 1136768653 2348 91706c542228501c410c266421fbe30c ""
   "/usr/share/texlive/texmf-dist/fonts/vf/adobe/times/ptmri8t.vf" 1136768653 2328 6cd7df782b09b29cfc4d93e55b6b9a59 ""
   "/usr/share/texlive/texmf-dist/tex/context/base/mkii/supp-pdf.mkii" 1461363279 71627 94eb9990bed73c364d7f53f960cc8c5b ""
@@ -108,6 +109,7 @@
   "/usr/share/texlive/texmf-dist/tex/latex/microtype/mt-ptm.cfg" 1678741534 12427 02d1873769280609ae2509e963f1fa66 ""
   "/usr/share/texlive/texmf-dist/tex/latex/natbib/natbib.sty" 1707919699 45458 f1c6cb3edd91174e966cbbaf88993bcf ""
   "/usr/share/texlive/texmf-dist/tex/latex/psnfss/t1ptm.fd" 1137110629 774 61d7da1e9f9e74989b196d147e623736 ""
+  "/usr/share/texlive/texmf-dist/tex/latex/psnfss/ts1ptm.fd" 1137110629 619 96f56dc5d1ef1fe1121f1cfeec70ee0c ""
   "/usr/share/texlive/texmf-dist/tex/latex/refcount/refcount.sty" 1576624809 9878 9e94e8fa600d95f9c7731bb21dfb67a4 ""
   "/usr/share/texlive/texmf-dist/tex/latex/rerunfilecheck/rerunfilecheck.sty" 1657483315 9714 ba3194bd52c8499b3f1e3eb91d409670 ""
   "/usr/share/texlive/texmf-dist/tex/latex/trimspaces/trimspaces.sty" 1253232110 1380 971a51b00a14503ddf754cab24c3f209 ""
@@ -118,10 +120,10 @@
   "/usr/share/texmf/web2c/texmf.cnf" 1707919699 40399 f2c302f7d2af602abb742093540a5834 ""
   "/var/lib/texmf/fonts/map/pdftex/updmap/pdftex.map" 1746442593.21385 165012 f177baa1c39a3ebd62c3096a43521a0d ""
   "/var/lib/texmf/web2c/pdftex/pdflatex.fmt" 1746442603 6831194 0757f9f40d34fe4749b4bfcca581c475 ""
-  "cs182_plusExperiments.aux" 1749308249.83194 3576 c5986b8f6edd9aaaee157069e40d2785 "pdflatex"
-  "cs182_plusExperiments.bbl" 1749308249.52195 1059 452501f4c145510ca4bed8ab09f9c1db "bibtex cs182_plusExperiments"
-  "cs182_plusExperiments.out" 1749308249.83294 1396 1d9ed77e97364399323dd7a90126379a "pdflatex"
-  "cs182_plusExperiments.tex" 1749308248.99895 16604 8f5d200d0a96362ec6a4fce092e6311a ""
+  "cs182_plusExperiments.aux" 1749361080.83538 3576 fefce279d259220a8ea232346794995c "pdflatex"
+  "cs182_plusExperiments.bbl" 1749361080.53037 1059 452501f4c145510ca4bed8ab09f9c1db "bibtex cs182_plusExperiments"
+  "cs182_plusExperiments.out" 1749361080.83538 1396 1d9ed77e97364399323dd7a90126379a "pdflatex"
+  "cs182_plusExperiments.tex" 1749361080.02235 15761 cc539e1c2b4eceac9b65d2af61e95a79 ""
   "imgs/epoch60_batch1.png" 1748876817 164534 4a5bc0d6dcc39ff889bd0e11deeb8c86 ""
   "neurips_2023.sty" 1749196469 11679 c1cfd7f89e5a4713f7030b5c2171c412 ""
   (generated)
