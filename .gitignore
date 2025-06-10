@@ -44,3 +44,8 @@ outputs/
 
 # Specific project files
 16.zip
+
+# Backup files from before merging remote changes
+backup_before_merge/
+*.err
+*.out
