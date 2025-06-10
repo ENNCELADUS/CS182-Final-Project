@@ -25,10 +25,6 @@ Thumbs.db
 *.csv
 *.pkl
 *.pt
-*.pth
-*.h5
-*.npy
-*.npz
 
 # Archive files
 *.zip
