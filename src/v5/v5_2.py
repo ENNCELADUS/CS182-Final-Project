@@ -156,7 +156,7 @@ class PPIClassifierV52(nn.Module):
         self.encoder = V2MaeEncoder(v2_mae_path)
         
         # V5 downstream components (trainable)
-        self.cross_attn = InteractionCrossAttention(d_model=768, n_heads=8, n_layers=2)
+        self.cross_attn = InteractionCrossAttention(d_model=768, n_heads=8, n_layers=2, dropout=0.1)
         self.mlp_head = InteractionMLPHead(input_dim=768, hidden_dim1=512, hidden_dim2=128)
         
         print("🔧 V5.2 Architecture:")

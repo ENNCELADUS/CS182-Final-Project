@@ -602,16 +602,16 @@ def main():
     # Training configuration - OPTIMIZED FOR QUICK TRAINING
     config = {
         # Core training parameters
-        'batch_size': 64,           # ⬆️ Increased for faster training
-        'learning_rate': 1e-3,      # ⬇️ More conservative for stability
-        'num_epochs': 40,           # ⬇️ Reduced for quick training
-        'weight_decay': 0.01,
+        'batch_size': 32,           
+        'learning_rate': 5e-5,      
+        'num_epochs': 50,           
+        'weight_decay': 0.05,
         
         # Acceleration settings
         'use_scheduler': True,
         'early_stopping': True,
-        'patience': 10,              # ⬇️ More aggressive early stopping
-        'num_workers': 4,           # ⬆️ Parallel data loading
+        'patience': 10,              
+        'num_workers': 4,           
         
         # V5.2 specific configuration
         'v2_mae_path': 'src/mask_autoencoder/model/mae_best_20250528-174157.pth',  # TODO: ⚠️ UPDATE THIS PATH

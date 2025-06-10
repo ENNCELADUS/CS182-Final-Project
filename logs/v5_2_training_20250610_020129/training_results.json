@@ -1,0 +1,59 @@
+{
+  "config": {
+    "batch_size": 32,
+    "learning_rate": 5e-05,
+    "num_epochs": 50,
+    "weight_decay": 0.01,
+    "use_scheduler": true,
+    "early_stopping": true,
+    "patience": 10,
+    "num_workers": 4,
+    "v2_mae_path": "src/mask_autoencoder/model/mae_best_20250528-174157.pth",
+    "save_dir": "models/v5_2_training_20250610_020129",
+    "log_dir": "logs/v5_2_training_20250610_020129"
+  },
+  "history": {
+    "train_loss": [0.7076, 0.6562, 0.6271, 0.6054, 0.5846, 0.5563, 0.5244, 0.4910, 0.4538, 0.4133, 0.3711, 0.3349, 0.2952, 0.2624, 0.2306, 0.2035, 0.1809, 0.1621, 0.1450],
+    "val_loss": [0.6660, 0.6254, 0.6095, 0.6021, 0.5835, 0.5825, 0.5867, 0.5912, 0.6020, 0.6555, 0.6792, 0.6988, 0.7918, 0.8847, 0.9367, 1.0378, 1.0181, 1.1436, 1.1914],
+    "train_auc": [0.5347, 0.6453, 0.6904, 0.7207, 0.7476, 0.7783, 0.8093, 0.8371, 0.8646, 0.8899, 0.9127, 0.9297, 0.9457, 0.9573, 0.9670, 0.9744, 0.9799, 0.9839, 0.9871],
+    "val_auc": [0.6375, 0.6953, 0.7142, 0.7330, 0.7475, 0.7562, 0.7593, 0.7625, 0.7686, 0.7634, 0.7626, 0.7577, 0.7522, 0.7500, 0.7513, 0.7505, 0.7482, 0.7462, 0.7425],
+    "train_acc": [0.5244, 0.5966, 0.6323, 0.6544, 0.6763, 0.7033, 0.7296, 0.7554, 0.7820, 0.8077, 0.8345, 0.8546, 0.8758, 0.8927, 0.9077, 0.9189, 0.9298, 0.9386, 0.9460],
+    "val_acc": [0.5922, 0.6324, 0.6500, 0.6605, 0.6701, 0.6832, 0.6864, 0.6872, 0.6961, 0.6904, 0.6904, 0.6948, 0.6910, 0.6907, 0.6904, 0.6929, 0.6893, 0.6935, 0.6857],
+    "learning_rate": [5e-05, 5e-05, 5e-05, 5e-05, 5e-05, 5e-05, 5e-05, 5e-05, 5e-05, 5e-05, 5e-05, 5e-05, 5e-05, 5e-05, 5e-05, 5e-05, 5e-05, 5e-05, 5e-05]
+  },
+  "best_epoch": 9,
+  "best_val_auc": 0.7686,
+  "early_stopping_epoch": 19,
+  "early_stopping_reason": "No improvement for 10 epochs",
+  "model_parameters": {
+    "total": 32451713,
+    "trainable": 15070465,
+    "frozen": 17381248,
+    "trainable_ratio": 46.4
+  },
+  "training_metadata": {
+    "device": "cuda",
+    "gpu_name": "NVIDIA GeForce RTX 2080 Ti",
+    "dataset_sizes": {
+      "train": 85329,
+      "validation": 21333,
+      "test1": 24898,
+      "test2": 136939
+    },
+    "architecture": "V5.2 PPI Classifier with pretrained v2 MAE",
+    "frozen_encoder": true,
+    "mixed_precision": true,
+    "start_time": "2025-06-10 02:01:29",
+    "training_completed": false,
+    "reason_stopped": "Early stopping triggered"
+  },
+  "performance_summary": {
+    "peak_validation_auc": 0.7686,
+    "peak_validation_epoch": 9,
+    "final_train_auc": 0.9871,
+    "final_val_auc": 0.7425,
+    "overfitting_detected": true,
+    "overfitting_start_epoch": 10,
+    "validation_loss_trend": "increasing_after_epoch_6"
+  }
+} 
