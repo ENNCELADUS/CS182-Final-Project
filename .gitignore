@@ -1,53 +1,46 @@
-# Python related
+# Python
 __pycache__/
 *.py[cod]
-*$py.class
 *.so
 .Python
-env/
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
 *.egg-info/
-.installed.cfg
 *.egg
 
 # Virtual environments
 venv/
-ENV/
 env/
+ENV/
 
-# IDE related files
+# IDE files
 .idea/
 .vscode/
 *.swp
 *.swo
 
-# OS specific
+# OS files
 .DS_Store
-Thumbs.db *Zone.Identifier
+Thumbs.db
 
 # Data files
 *.csv
 *.pkl
 *.pt
 
+# Archive files
 *.zip
 *.tar
 *.gz
-*.bz2
-*.rar
-*.7z
-*.wim
 
-.npy
+# Logs
+*.log
+logs/
 
-docs/final_pre/speech_notes.md
+# Results
+results/
+outputs/
+
+# Jupyter checkpoints
+.ipynb_checkpoints
+
+# Specific project files
+16.zip
