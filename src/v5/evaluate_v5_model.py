@@ -334,8 +334,8 @@ def evaluate_model(checkpoint_path, batch_size=8, log_dir=None):
 
 def main():
     """Main function"""
-    # Your specific checkpoint path
-    checkpoint_path = "models/ppi_best_20250607-111738.pth"
+    # TODO: Your specific checkpoint path
+    checkpoint_path = "models/v5_2_training_20250610_020129/checkpoint_epoch_9_best.pth"
     
     # Run evaluation
     results = evaluate_model(checkpoint_path, batch_size=8)

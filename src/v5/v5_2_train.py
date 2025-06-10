@@ -467,7 +467,7 @@ def train_model(config):
     optimizer = optim.AdamW(
         model.parameters(),
         lr=config['learning_rate'],
-        weight_decay=config.get('weight_decay', 0.01),
+        weight_decay=config['weight_decay'],
         betas=(0.9, 0.999)
     )
     
@@ -602,16 +602,16 @@ def main():
     # Training configuration - OPTIMIZED FOR QUICK TRAINING
     config = {
         # Core training parameters
-        'batch_size': 32,           
-        'learning_rate': 5e-5,      
-        'num_epochs': 50,           
-        'weight_decay': 0.05,
+        'batch_size': 32,
+        'learning_rate': 1e-5,      # Lowered LR to mitigate overfitting
+        'num_epochs': 30,           # Fewer epochs to prevent over-training
+        'weight_decay': 0.1,        # Stronger regularization via increased weight decay
         
         # Acceleration settings
         'use_scheduler': True,
         'early_stopping': True,
-        'patience': 10,              
-        'num_workers': 4,           
+        'patience': 5,              # Stop earlier if no improvement
+        'num_workers': 0,           # Set to 0 to avoid shared memory bus errors           
         
         # V5.2 specific configuration
         'v2_mae_path': 'src/mask_autoencoder/model/mae_best_20250528-174157.pth',  # TODO: ⚠️ UPDATE THIS PATH
