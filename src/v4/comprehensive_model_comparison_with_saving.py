@@ -18,7 +18,7 @@ warnings.filterwarnings('ignore')
 
 # Import from the existing modules
 from v4 import load_data, ProteinPairDataset, collate_fn, ProteinInteractionClassifier
-from quick_fix_v4 import SimplifiedProteinClassifier
+from v4.DNN_v4 import SimplifiedProteinClassifier
 
 class EarlyStopping:
     """Early stopping to prevent overfitting"""

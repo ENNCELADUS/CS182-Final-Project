@@ -9,12 +9,16 @@ import torch.nn as nn
 import numpy as np
 import pandas as pd
 import os
+import sys
 import json
 from datetime import datetime
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use('Agg')
+
+# Add src directory to Python path
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 
 from torch.utils.data import DataLoader
 from sklearn.metrics import (accuracy_score, precision_score, recall_score, 

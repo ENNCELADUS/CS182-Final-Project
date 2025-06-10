@@ -1,0 +1,18 @@
+\begin{thebibliography}{1}
+
+\bibitem{recent_advances_ppi_2023}
+Jesse Durham, Jing Zhang, Ian~R. Humphreys, Jimin Pei, and Qian Cong.
+\newblock Recent advances in predicting and modeling protein–protein interactions.
+\newblock {\em Trends in Biochemical Sciences}, 48(6), 2023.
+
+\bibitem{evolution_language_model_2023}
+Thomas Hayes, Roshan Rao, Halil Akin, Nicholas~J. Sofroniew, Deniz Oktay, Zeming Lin, Robert Verkuil, Vincent~Q. Tran, Jonathan Deaton, Marius Wiggert, Rohil Badkundri, Irhum Shafkat, Jun Gong, Alexander Derry, Raul~S. Molina, Neil Thomas, Yousuf~A. Khan, Chetan Mishra, Carolyn Kim, Liam~J. Bartie, Matthew Nemeth, Patrick~D. Hsu, Tom Sercu, Salvatore Candido, and Alexander Rives.
+\newblock Simulating 500 million years of evolution with a language model.
+\newblock {\em Science}, 387:850--858, 2025.
+
+\bibitem{pitfalls_ml_ppi_2023}
+Loïc Lannelongue and Michael Inouye.
+\newblock Pitfalls of machine learning models for protein–protein interaction networks.
+\newblock {\em Bioinformatics}, 40(2):btae012, 2024.
+
+\end{thebibliography}

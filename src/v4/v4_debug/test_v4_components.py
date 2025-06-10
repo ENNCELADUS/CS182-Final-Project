@@ -9,7 +9,7 @@ import numpy as np
 from v4 import (RoPEPositionalEncoding, EnhancedTransformerLayer, 
                 ProteinEncoder, CrossAttentionInteraction, 
                 EnhancedMLPDecoder, ProteinInteractionClassifier)
-from quick_fix_v4 import SimplifiedProteinClassifier
+from v4.DNN_v4 import SimplifiedProteinClassifier
 
 def test_rope_component():
     """Test RoPE positional encoding"""

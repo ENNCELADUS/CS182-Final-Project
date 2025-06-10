@@ -9,7 +9,7 @@ import torch.nn as nn
 import numpy as np
 from v4 import (ProteinInteractionClassifier, EnhancedTransformerLayer, 
                 CrossAttentionInteraction, EnhancedMLPDecoder, ProteinEncoder)
-from quick_fix_v4 import SimplifiedProteinClassifier
+from v4.DNN_v4 import SimplifiedProteinClassifier
 
 class FixedEnhancedTransformerLayer(nn.Module):
     """Fixed version with proper initialization"""

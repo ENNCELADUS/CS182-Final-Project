@@ -5,8 +5,8 @@ import math
 from typing import Optional, Tuple
 
 class PatchEmbedding(nn.Module):
-    """Converts 32x960 residue chunks into 768-d tokens"""
-    def __init__(self, input_dim=960, embed_dim=768):
+    """Converts 32x960 residue chunks into 512-d tokens"""
+    def __init__(self, input_dim=960, embed_dim=512):
         super().__init__()
         self.embed_dim = embed_dim
         self.projection = nn.Linear(input_dim, embed_dim)
@@ -19,10 +19,10 @@ class MAEEncoder(nn.Module):
     """MAE Encoder adapted from v2.py TransformerMAE"""
     def __init__(self,
                  input_dim=960,
-                 embed_dim=768,
-                 num_layers=12,
-                 nhead=12,
-                 ff_dim=3072,
+                 embed_dim=512,
+                 num_layers=8,
+                 nhead=8,
+                 ff_dim=2048,
                  max_len=1502,
                  dropout=0.1):
         super().__init__()
@@ -100,7 +100,7 @@ class MAEEncoder(nn.Module):
 
 class InteractionCrossAttention(nn.Module):
     """Cross-attention module for protein-protein interactions"""
-    def __init__(self, d_model=768, n_heads=8, n_layers=2, dropout=0.1):
+    def __init__(self, d_model=512, n_heads=8, n_layers=2, dropout=0.1):
         super().__init__()
         self.d_model = d_model
         self.n_heads = n_heads
@@ -158,7 +158,7 @@ class InteractionCrossAttention(nn.Module):
 
 class InteractionMLPHead(nn.Module):
     """MLP head for final classification"""
-    def __init__(self, input_dim=768, hidden_dim1=512, hidden_dim2=128, output_dim=1, dropout=0.2):
+    def __init__(self, input_dim=512, hidden_dim1=256, hidden_dim2=64, output_dim=1, dropout=0.2):
         super().__init__()
         
         self.layers = nn.Sequential(
